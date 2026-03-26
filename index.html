@@ -432,6 +432,65 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
     return new Date(ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
   };
 
+  // Detect quick reply options from last assistant message
+  const getQuickReplies=useCallback((content)=>{
+    if(!content||decided)return[];
+    const t=content.toLowerCase();
+    // Yes/No questions
+    if(/\?/.test(t)&&(t.includes(" yes")||t.includes("is this")||t.includes("are you")||t.includes("do you")||t.includes("can you")||t.includes("would you")||t.includes("have you")||t.includes("actionable")||t.includes("does it")||t.includes("did you"))) {
+      return["Yes","No"];
+    }
+    // Project vs single action
+    if(t.includes("project")&&(t.includes("single")||t.includes("one action")||t.includes("multiple")||t.includes("more than one"))) {
+      return["Single action","Project - multiple steps"];
+    }
+    // 2-minute rule
+    if(t.includes("2 minute")||t.includes("two minute")||t.includes("2-minute")) {
+      return["Yes, doing it now","No, takes longer"];
+    }
+    // Delegate
+    if(t.includes("delegate")||t.includes("someone else")||t.includes("assign")) {
+      return["I'll do it","Delegate it","Not sure yet"];
+    }
+    // Context
+    if(t.includes("context")||t.includes("where will you")||t.includes("@work")||t.includes("@home")) {
+      return GTD_CONTEXTS.slice(0,5);
+    }
+    // Due date
+    if(t.includes("due date")||t.includes("deadline")||t.includes("when does")||t.includes("time-sensitive")||t.includes("specific date")) {
+      return["Yes, has a deadline","No, whenever","Urgent - this week"];
+    }
+    // Trash vs keep
+    if(t.includes("trash")||t.includes("delete")||t.includes("get rid")||t.includes("let it go")||t.includes("let go")) {
+      return["Yes, trash it","Keep it - someday","Keep it - reference"];
+    }
+    // Reference vs someday
+    if((t.includes("reference")||t.includes("information"))&&(t.includes("someday")||t.includes("maybe")||t.includes("act on"))) {
+      return["Reference - keep the info","Someday/Maybe","Trash it"];
+    }
+    return[];
+  },[decided]);
+
+  const lastAssistantMsg=messages.filter(m=>m.role==="assistant"&&!m.isDecision).slice(-1)[0];
+  const quickReplies=lastAssistantMsg&&!thinking?getQuickReplies(lastAssistantMsg.content):[];
+
+  const sendQuick=async(reply)=>{
+    setInput("");
+    const userMsg={role:"user",content:reply,ts:Date.now()};
+    const next=[...messages,userMsg];
+    setMessages(next);setThinking(true);
+    onSaveConvo(note.id,next);
+    try{
+      const r=await gtdClarify(apiKey,next.map(({role,content})=>({role,content})),note.text,"");
+      const withReply=[...next,{role:"assistant",content:r,ts:Date.now()}];
+      setMessages(withReply);onSaveConvo(note.id,withReply);
+    }catch{
+      const withErr=[...next,{role:"assistant",content:"Got it — what do you want to do with this?",ts:Date.now()}];
+      setMessages(withErr);onSaveConvo(note.id,withErr);
+    }
+    setThinking(false);
+  };
+
   return(
     <div className="overlay">
       <div className="sheet-panel sheet" style={{maxHeight:"95vh"}}>
@@ -467,6 +526,18 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
           {thinking&&<div className="bubble bubble-ai"><span style={{fontSize:20,animation:"pulse 1s infinite",display:"inline-block"}}>…</span></div>}
           <div ref={bottomRef}/>
         </div>
+
+        {/* Quick reply suggestions */}
+        {quickReplies.length>0&&!decided&&(
+          <div style={{padding:"0 14px 8px",flexShrink:0,display:"flex",gap:6,flexWrap:"wrap"}}>
+            {quickReplies.map(r=>(
+              <button key={r} onClick={()=>sendQuick(r)} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:20,padding:"6px 14px",fontSize:11,fontFamily:"'DM Mono',monospace",color:"#374151",letterSpacing:"0.04em",transition:"all 0.12s",cursor:"pointer"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#1f2937";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#1f2937";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.color="#374151";e.currentTarget.style.borderColor="#e5e7eb";}}
+              >{r}</button>
+            ))}
+          </div>
+        )}
 
         {/* Input */}
         {!decided&&(
@@ -750,8 +821,8 @@ function QuickCapture({onAdd}){
   };
   return(
     <div style={{background:"#fff",border:"1px solid #e8e6e3",borderRadius:12,boxShadow:"0 1px 6px rgba(0,0,0,0.04)",marginBottom:18,overflow:"hidden"}}>
-      <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))submit();}}
-        placeholder="Quick capture → Inbox  (Ctrl+Enter)" rows={2}
+      <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submit();}}}
+        placeholder="Quick capture → Inbox  (Enter to save, Shift+Enter for new line)" rows={2}
         style={{width:"100%",background:"transparent",border:"none",padding:"13px 16px 8px",color:"#1f2937",fontFamily:"'Lora',serif",fontSize:15,lineHeight:1.7,resize:"none"}}
       />
       <div style={{padding:"0 12px 11px",borderTop:"1px solid #f3f4f6",paddingTop:8}}>
