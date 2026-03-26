@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<title>Notes</title>
+<title>GTD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -12,186 +12,214 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: #f7f6f3; font-family: 'Lora', serif; }
-  body { -webkit-font-smoothing: antialiased; }
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
-  textarea, input { font-family: inherit; }
-  textarea:focus, input:focus { outline: none; }
-  textarea::placeholder, input::placeholder { color: #c4c4c4; }
-  button { font-family: 'DM Mono', monospace; cursor: pointer; border: none; -webkit-tap-highlight-color: transparent; }
-  input[type=date]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#f5f4f1;font-family:'Lora',serif;}
+body{-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px;}
+textarea,input{font-family:inherit;}
+textarea:focus,input:focus{outline:none;}
+textarea::placeholder,input::placeholder{color:#c4c4c4;}
+button{font-family:'DM Mono',monospace;cursor:pointer;border:none;-webkit-tap-highlight-color:transparent;}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:0.5;cursor:pointer;}
 
-  @keyframes slideUp  { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  @keyframes pulse    { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
-  @keyframes pop      { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes slideUp{from{transform:translateY(100%);opacity:0;}to{transform:translateY(0);opacity:1;}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@keyframes pulse{0%,100%{opacity:0.3;}50%{opacity:1;}}
+@keyframes pop{0%{transform:scale(0.95);opacity:0;}100%{transform:scale(1);opacity:1;}}
 
-  .sheet   { animation: slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1); }
-  .fade    { animation: fadeIn 0.2s ease; }
-  .pop     { animation: pop 0.2s ease; }
+.sheet{animation:slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1);}
+.fade{animation:fadeIn 0.2s ease;}
+.pop{animation:pop 0.2s ease;}
 
-  .fab-row { position: fixed; bottom: 28px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; padding: 0 20px; z-index: 50; pointer-events: none; }
-  .fab-row button { pointer-events: all; }
-  .fab { height: 52px; border-radius: 26px; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: transform 0.12s, box-shadow 0.12s; display: flex; align-items: center; gap: 8px; padding: 0 22px; }
-  .fab:active { transform: scale(0.96); }
-  .fab-primary { background: #1f2937; color: #fff; }
-  .fab-amber   { background: #d97706; color: #fff; }
+/* Layout */
+.app-shell{display:flex;min-height:100vh;}
+.sidebar{width:220px;background:#fff;color:#1f2937;border-right:1px solid #e8e6e3;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:10;transition:transform 0.25s ease;}
+.sidebar.hidden{transform:translateX(-220px);}
+.main-area{flex:1;margin-left:220px;transition:margin 0.25s ease;}
+.main-area.full{margin-left:0;}
+@media(max-width:640px){
+  .sidebar{transform:translateX(-220px);}
+  .sidebar.mobile-open{transform:translateX(0);}
+  .main-area{margin-left:0;}
+  .sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9;animation:fadeIn 0.2s ease;}
+}
 
-  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.28); z-index: 100; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.18s ease; }
-  .sheet-panel  { background: #fff; border-radius: 20px 20px 0 0; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
-  .sheet-handle { width: 36px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 14px auto 0; flex-shrink: 0; }
-  .sheet-header { padding: 16px 20px 14px; border-bottom: 1px solid #f3f4f6; flex-shrink: 0; }
-  .sheet-body   { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
-  .sheet-footer { padding: 12px 20px 32px; border-top: 1px solid #f3f4f6; flex-shrink: 0; }
+/* Sidebar */
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-radius:8px;margin:1px 8px;transition:background 0.12s;color:#6b7280;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.04em;border:none;background:none;width:calc(100% - 16px);text-align:left;}
+.nav-item:hover{background:#f5f4f1;color:#374151;}
+.nav-item.active{background:#f0ede9;color:#1f2937;font-weight:600;}
+.nav-item .badge{background:#e5e7eb;color:#374151;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:auto;}
+.nav-item .badge.urgent{background:#fef2f2;color:#dc2626;}
+.nav-section{padding:16px 16px 6px;font-size:9px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.14em;color:#9ca3af;font-weight:600;}
 
-  .note-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.15s; }
-  .note-card:hover { box-shadow: 0 3px 16px rgba(0,0,0,0.08); }
-  .note-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px 12px; background: #fafafa; border-top: 1px solid #f3f4f6; }
-  .action-btn { border-radius: 7px; padding: 8px 13px; font-size: 11px; letter-spacing: 0.05em; font-weight: 600; transition: opacity 0.12s; }
-  .action-btn:active { opacity: 0.7; }
+/* Sheets / overlays */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:100;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn 0.18s ease;}
+.sheet-panel{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}
+.sheet-handle{width:36px;height:4px;background:#e5e7eb;border-radius:2px;margin:14px auto 0;flex-shrink:0;}
+.sheet-header{padding:16px 20px 14px;border-bottom:1px solid #f3f4f6;flex-shrink:0;}
+.sheet-body{flex:1;overflow-y:auto;padding:20px;-webkit-overflow-scrolling:touch;}
+.sheet-footer{padding:12px 20px 32px;border-top:1px solid #f3f4f6;flex-shrink:0;}
 
-  .input-base { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; font-size: 15px; color: #1f2937; background: #fafafa; transition: border-color 0.15s; }
-  .input-base:focus { border-color: #9ca3af; background: #fff; }
+/* Cards */
+.note-card{background:#fff;border:1px solid #e8e6e3;border-radius:10px;margin-bottom:7px;overflow:hidden;transition:box-shadow 0.15s;}
+.note-card:hover{box-shadow:0 3px 16px rgba(0,0,0,0.07);}
+.note-actions{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 12px;background:#fafaf9;border-top:1px solid #f3f4f6;}
+.action-btn{border-radius:7px;padding:7px 12px;font-size:11px;letter-spacing:0.05em;font-weight:600;transition:opacity 0.12s;}
 
-  .pill     { font-size: 9px; font-family: 'DM Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; border-radius: 4px; padding: 2px 8px; flex-shrink: 0; }
-  .cat-chip { border-radius: 6px; padding: 6px 12px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; font-family: 'DM Mono', monospace; transition: all 0.12s; border: 1.5px solid transparent; }
+/* Inputs */
+.input-base{width:100%;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;font-size:15px;color:#1f2937;background:#fafafa;transition:border-color 0.15s;}
+.input-base:focus{border-color:#9ca3af;background:#fff;}
 
-  .tab-bar { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .tab-bar::-webkit-scrollbar { display: none; }
-  .tab { border-radius: 8px; padding: 7px 14px; font-size: 11px; letter-spacing: 0.05em; transition: all 0.12s; flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+/* Chips */
+.chip{border-radius:6px;padding:5px 11px;font-size:10px;letter-spacing:0.07em;text-transform:uppercase;font-weight:600;font-family:'DM Mono',monospace;transition:all 0.12s;border:1.5px solid transparent;cursor:pointer;}
+.chip.active{border-color:currentColor;}
 
-  .bubble-ai   { background: #f3f4f6; color: #1f2937; border-radius: 4px 14px 14px 14px; align-self: flex-start; max-width: 88%; }
-  .bubble-user { background: #1f2937; color: #fff; border-radius: 14px 4px 14px 14px; align-self: flex-end; max-width: 88%; }
-  .bubble { padding: 10px 14px; font-size: 14px; line-height: 1.6; font-family: 'Lora', serif; }
+/* Bubbles */
+.bubble-ai{background:#f3f4f6;color:#1f2937;border-radius:4px 14px 14px 14px;align-self:flex-start;max-width:88%;}
+.bubble-user{background:#1f2937;color:#fff;border-radius:14px 4px 14px 14px;align-self:flex-end;max-width:88%;}
+.bubble{padding:10px 14px;font-size:14px;line-height:1.6;font-family:'Lora',serif;}
+.bubble-meta{font-size:9px;font-family:'DM Mono',monospace;color:#9ca3af;margin-top:3px;text-align:right;}
 
-  .dec-btn { border-radius: 9px; padding: 10px 12px; font-size: 11px; letter-spacing: 0.05em; border: 1.5px solid #e5e7eb; background: #fff; color: #374151; transition: all 0.12s; flex: 1; text-align: center; min-width: 0; }
-  .dec-btn:active { transform: scale(0.96); }
+/* Decision buttons */
+.dec-btn{border-radius:9px;padding:9px 10px;font-size:10px;letter-spacing:0.04em;border:1.5px solid #e5e7eb;background:#fff;color:#374151;transition:all 0.12s;text-align:center;}
+.dec-btn:active{transform:scale(0.96);}
 
-  .sync-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+/* FABs */
+.fab-row{position:fixed;bottom:24px;right:20px;display:flex;flex-direction:column;gap:10px;z-index:50;}
+.fab{height:48px;border-radius:24px;font-size:12px;font-weight:500;letter-spacing:0.04em;box-shadow:0 4px 16px rgba(0,0,0,0.14);transition:transform 0.12s,box-shadow 0.12s;display:flex;align-items:center;gap:7px;padding:0 18px;white-space:nowrap;}
+.fab:active{transform:scale(0.96);}
+.fab-dark{background:#1f2937;color:#fff;}
+.fab-amber{background:#d97706;color:#fff;}
 
-  /* Dump item */
-  .dump-item { display: flex; gap: 8px; align-items: flex-start; padding: 9px 12px; border: 1px solid #e5e7eb; border-radius: 9px; margin-bottom: 6px; background: #fff; transition: all 0.15s; }
-  .dump-item.indent-1 { margin-left: 20px; border-left: 2px solid #e5e7eb; background: #fafafa; }
-  .dump-item.indent-2 { margin-left: 40px; border-left: 2px solid #f0ede9; background: #f9f8f6; }
-  .dump-item.sorted { border-left: 3px solid var(--cat-color); }
-  .dump-item.excluded { opacity: 0.35; }
+/* Context badge */
+.ctx-badge{font-size:9px;font-family:'DM Mono',monospace;letter-spacing:0.08em;background:#f3f4f6;color:#6b7280;border-radius:4px;padding:2px 7px;font-weight:600;}
 
-  /* Step indicator */
-  .step-bar { display: flex; gap: 0; margin-bottom: 16px; }
-  .step { flex: 1; height: 3px; border-radius: 2px; background: #f3f4f6; transition: background 0.3s; }
-  .step.active { background: #1f2937; }
-  .step.done   { background: #10b981; }
+/* List tag */
+.list-tag{font-size:9px;font-family:'DM Mono',monospace;letter-spacing:0.1em;text-transform:uppercase;font-weight:700;border-radius:4px;padding:2px 7px;flex-shrink:0;}
+
+/* Dump items */
+.dump-item{display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border:1px solid #e5e7eb;border-radius:9px;margin-bottom:6px;background:#fff;}
+.dump-item.indent-1{margin-left:18px;border-left:2px solid #e5e7eb;background:#fafafa;}
+.dump-item.indent-2{margin-left:36px;border-left:2px solid #f0ede9;background:#f9f8f6;}
+
+/* Top bar mobile */
+.topbar{display:none;background:#fff;color:#1f2937;border-bottom:1px solid #e8e6e3;padding:12px 16px;align-items:center;gap:12px;position:sticky;top:0;z-index:8;}
+@media(max-width:640px){.topbar{display:flex;}}
+
+.sync-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
-const SK_NOTES    = "gtd_notes_v3";
-const SK_CATS     = "gtd_cats_v3";
-const SK_API_KEY  = "gtd_api_key";
-const SK_G_CLIENT = "gtd_google_client_id";
-const DRIVE_FILE  = "gtd-notes-app.json";
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SK_NOTES="gtd_v4_notes";
+const SK_CONVOS="gtd_v4_convos";
+const SK_SETTINGS="gtd_v4_settings";
+const DRIVE_FILE="gtd-notes-v4.json";
+const DRIVE_SCOPE="https://www.googleapis.com/auth/drive.file";
 
-const DEFAULT_CATS = [
-  { id:"work",     label:"Work",     color:"#2563eb", bg:"#eff6ff" },
-  { id:"idea",     label:"Idea",     color:"#d97706", bg:"#fffbeb" },
-  { id:"personal", label:"Personal", color:"#059669", bg:"#ecfdf5" },
+// GTD Lists
+const GTD_LISTS=[
+  {id:"inbox",     label:"Inbox",       icon:"📥", color:"#6b7280", desc:"Everything unclarified"},
+  {id:"next",      label:"Next Actions",icon:"⚡", color:"#2563eb", desc:"Single next steps"},
+  {id:"project",   label:"Projects",    icon:"📁", color:"#7c3aed", desc:"Multi-step outcomes"},
+  {id:"waiting",   label:"Waiting For", icon:"⏳", color:"#d97706", desc:"Delegated / pending others"},
+  {id:"someday",   label:"Someday/Maybe",icon:"☁", color:"#0891b2", desc:"Maybe one day"},
+  {id:"reference", label:"Reference",   icon:"📚", color:"#059669", desc:"Information to keep"},
+  {id:"done",      label:"Done",        icon:"✓",  color:"#9ca3af", desc:"Completed"},
 ];
-const CAT_PALETTE = ["#2563eb","#d97706","#059669","#dc2626","#7c3aed","#db2777","#0891b2","#65a30d","#9a3412","#374151"];
 
-const uid      = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
-const todayStr = () => new Date().toISOString().slice(0,10);
-const addDays  = n  => { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
-const fmtDate  = iso => iso ? new Date(iso+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}) : "";
-const dueLabel = iso => {
-  if (!iso) return null;
-  const diff = Math.round((new Date(iso)-new Date(todayStr()))/86400000);
-  if (diff<0)  return {text:`${Math.abs(diff)}d overdue`,urgent:true};
-  if (diff===0) return {text:"Due today",urgent:true};
-  if (diff===1) return {text:"Due tomorrow",urgent:false};
-  return {text:`Due ${fmtDate(iso)}`,urgent:false};
+// GTD Contexts (for Next Actions)
+const GTD_CONTEXTS=["@work","@home","@calls","@errands","@computer","@email","@reading","@agenda"];
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const addDays=n=>{const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+const fmtDate=iso=>iso?new Date(iso+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"";
+const dueLabel=iso=>{
+  if(!iso)return null;
+  const diff=Math.round((new Date(iso)-new Date(todayStr()))/86400000);
+  if(diff<0)return{text:`${Math.abs(diff)}d overdue`,urgent:true};
+  if(diff===0)return{text:"Due today",urgent:true};
+  if(diff===1)return{text:"Due tomorrow",urgent:false};
+  return{text:`Due ${fmtDate(iso)}`,urgent:false};
 };
-const isVisible   = n => !n.done && (!n.snoozedUntil||n.snoozedUntil<=todayStr());
-const isTodayItem = n => isVisible(n) && !!n.dueDate && n.dueDate<=todayStr();
-const load  = (k,fb) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):fb; } catch { return fb; } };
-const lsave = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
+const isActive=n=>!n.done&&n.list!=="done"&&(!n.snoozedUntil||n.snoozedUntil<=todayStr());
+const load=(k,fb)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch{return fb;}};
+const lsave=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
+const getListMeta=id=>GTD_LISTS.find(l=>l.id===id)||GTD_LISTS[0];
 
 // ── Claude API ────────────────────────────────────────────────────────────────
-async function callClaude(apiKey, messages, system) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+async function callClaude(apiKey,messages,system){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body: JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system,messages})
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,system,messages})
   });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+  const data=await res.json();
+  if(data.error)throw new Error(data.error.message);
   return data.content?.find(b=>b.type==="text")?.text||"";
 }
 
-// Phase 1: extract raw items with indent levels only — no categories
-async function extractItems(apiKey, text) {
-  const raw = await callClaude(apiKey,
+async function extractItems(apiKey,text){
+  const raw=await callClaude(apiKey,
     [{role:"user",content:text}],
     `Extract individual items from a brain dump. Return ONLY a JSON array, no markdown.
-Each item: {"text":string,"indent":0|1|2}
-Rules:
-- indent 0 = top-level item
-- indent 1 = sub-item or detail that belongs under the previous indent-0 item
-- indent 2 = further detail under an indent-1 item
-- Keep text concise but preserve meaning
-- Split compound sentences into separate items
-- Group related items naturally using indent levels
-- Do NOT assign categories or dates yet`
+Each: {"text":string,"indent":0|1|2}
+indent 0=top-level, 1=sub-item under previous 0, 2=detail under 1.
+Keep text concise. Split compound sentences. Do NOT assign categories or dates.`
   );
   return JSON.parse(raw.replace(/```json|```/g,"").trim());
 }
 
-// Phase 2: assign categories and dates to already-extracted items
-async function sortItems(apiKey, items, cats) {
-  const catList = cats.map(c=>`"${c.id}"`).join("|");
-  const catDesc = cats.map(c=>`${c.id}=${c.label}`).join(", ");
-  const itemList = items.map((it,i)=>(`${i}: "${it.text}"`)).join("\n");
-  const raw = await callClaude(apiKey,
-    [{role:"user",content:itemList}],
-    `Assign categories and due dates to these items. Today is ${todayStr()}.
-Return ONLY a JSON array with one object per item in the same order: {"catId":${catList},"dueDate":"YYYY-MM-DD"|null}
-Categories: ${catDesc}.
-- Pick the best catId for each item
-- dueDate: only if urgency is clearly implied (today/tomorrow/asap/this week/urgent), else null`
-  );
-  const assignments = JSON.parse(raw.replace(/```json|```/g,"").trim());
-  return items.map((it,i)=>({...it,...(assignments[i]||{catId:cats[0]?.id,dueDate:null})}));
+async function gtdClarify(apiKey,messages,noteText,noteContext){
+  const system=`You are a GTD (Getting Things Done) coach helping process inbox items.
+
+WORKFLOW — work through these questions in order, one at a time:
+1. "Is this actionable?" — if no, suggest: trash it, file as Reference, or park in Someday/Maybe
+2. If yes: "Is this a Project (needs more than one action) or a single Next Action?"
+3. If Project: "What's the desired outcome?" and "What's the very next physical action?"
+4. If Next Action: "What's the exact next physical action?" (must be specific and physical, e.g. "Call John on 0161..." not "Sort out John")
+5. "What context does this belong to?" (@work @home @calls @errands @computer @email @reading)
+6. "Does this have a due date, or can it be done whenever?"
+
+RULES:
+- Ask ONE question at a time — never multiple
+- Be direct and brief — no lengthy explanations
+- If they've already answered something, don't ask again — use their previous answers
+- When you have enough to make a decision, summarise it and stop
+- The 2-minute rule: if it takes less than 2 minutes, tell them to do it now
+
+Current item: "${noteText}"
+${noteContext?`Previous conversation context: ${noteContext}`:""}`;
+
+  return callClaude(apiKey,messages,system);
 }
 
 // ── Google Drive ──────────────────────────────────────────────────────────────
-let tokenClient = null;
-let gAccessToken = null;
-let driveFileId = null;
+let tokenClient=null,gAccessToken=null,driveFileId=null;
 
-async function driveRequest(method,url,body) {
-  const headers={Authorization:`Bearer ${gAccessToken}`};
-  if (body&&!(body instanceof FormData)) headers["Content-Type"]="application/json";
-  const res=await fetch(url,{method,headers,body:body?(body instanceof FormData?body:JSON.stringify(body)):undefined});
-  if (!res.ok){const e=await res.json().catch(()=>{});throw new Error(e?.error?.message||`HTTP ${res.status}`);}
-  return res.headers.get("content-type")?.includes("json")?res.json():res.text();
+async function driveReq(method,url,body){
+  const h={Authorization:`Bearer ${gAccessToken}`};
+  if(body&&!(body instanceof FormData))h["Content-Type"]="application/json";
+  const r=await fetch(url,{method,headers:h,body:body?(body instanceof FormData?body:JSON.stringify(body)):undefined});
+  if(!r.ok){const e=await r.json().catch(()=>{});throw new Error(e?.error?.message||`HTTP ${r.status}`);}
+  return r.headers.get("content-type")?.includes("json")?r.json():r.text();
 }
 async function findDriveFile(){
   const q=encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
-  const data=await driveRequest("GET",`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`);
-  return data.files?.[0]?.id||null;
+  const d=await driveReq("GET",`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id)`);
+  return d.files?.[0]?.id||null;
 }
 async function loadFromDrive(){
-  const id=await findDriveFile();
-  if(!id)return null;
-  driveFileId=id;
-  const text=await driveRequest("GET",`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
-  return JSON.parse(typeof text==="string"?text:JSON.stringify(text));
+  const id=await findDriveFile();if(!id)return null;driveFileId=id;
+  const t=await driveReq("GET",`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+  return JSON.parse(typeof t==="string"?t:JSON.stringify(t));
 }
 async function saveToDrive(data){
   const content=JSON.stringify(data);
@@ -199,62 +227,76 @@ async function saveToDrive(data){
   const form=new FormData();
   form.append("metadata",new Blob([JSON.stringify(meta)],{type:"application/json"}));
   form.append("file",new Blob([content],{type:"application/json"}));
-  if(driveFileId){
-    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`,{method:"PATCH",headers:{Authorization:`Bearer ${gAccessToken}`},body:form});
-    if(!res.ok)throw new Error(`Save failed: ${res.status}`);
-  }else{
-    const res=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",{method:"POST",headers:{Authorization:`Bearer ${gAccessToken}`},body:form});
-    if(!res.ok)throw new Error(`Create failed: ${res.status}`);
-    const created=await res.json();
-    driveFileId=created.id;
-  }
+  const url=driveFileId
+    ?`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`
+    :"https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+  const method=driveFileId?"PATCH":"POST";
+  const r=await fetch(url,{method,headers:{Authorization:`Bearer ${gAccessToken}`},body:form});
+  if(!r.ok)throw new Error(`Drive save failed: ${r.status}`);
+  if(!driveFileId){const c=await r.json();driveFileId=c.id;}
 }
 
-// ── Pill ──────────────────────────────────────────────────────────────────────
-function Pill({cat}){
-  return <span className="pill" style={{color:cat.color,background:cat.bg}}>{cat.label}</span>;
+// ── Brain Dump ────────────────────────────────────────────────────────────────
+async function sortItems(apiKey,items){
+  const itemList=items.map((it,i)=>`${i}: "${it.text}"`).join("\n");
+  const raw=await callClaude(apiKey,[{role:"user",content:itemList}],
+    `Assign GTD lists to these items. Today is ${todayStr()}.
+Return ONLY a JSON array, same order: {"list":"inbox"|"next"|"project"|"waiting"|"someday"|"reference","context":"@work"|"@home"|"@calls"|"@errands"|"@computer"|"@email"|"@reading"|null,"dueDate":"YYYY-MM-DD"|null}
+list rules: next=single actionable step, project=needs multiple steps, waiting=depends on someone else, someday=no commitment yet, reference=info to keep, default to inbox if unclear.
+context: only for "next" items, else null.
+dueDate: only if urgency clearly implied.`
+  );
+  const assignments=JSON.parse(raw.replace(/```json|```/g,"").trim());
+  return items.map((it,i)=>({...it,...(assignments[i]||{list:"inbox",context:null,dueDate:null})}));
 }
 
-// ── Sync bar ──────────────────────────────────────────────────────────────────
-function SyncBar({status,lastSync,onSync,connected}){
-  const C={idle:{dot:"#10b981",text:"Synced"},syncing:{dot:"#d97706",text:"Syncing…"},error:{dot:"#dc2626",text:"Sync failed"},offline:{dot:"#9ca3af",text:"Drive not connected"}};
-  const c=C[status]||C.idle;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function ListTag({listId}){
+  const l=getListMeta(listId);
+  return <span className="list-tag" style={{color:l.color,background:l.color+"18"}}>{l.icon} {l.label}</span>;
+}
+
+function SectionHead({label,count,color}){
   return(
-    <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,marginBottom:16,cursor:connected?"pointer":"default"}} onClick={connected?onSync:undefined}>
-      <div className="sync-dot" style={{background:c.dot}}/>
-      <span style={{flex:1,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#6b7280"}}>{c.text}{lastSync&&status==="idle"?` · ${lastSync}`:""}</span>
-      {connected&&<span style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>↻ sync now</span>}
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+      <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:700,color:color||"#6b7280",whiteSpace:"nowrap"}}>{label}</span>
+      {count>0&&<span style={{background:(color||"#6b7280")+"18",color:color||"#6b7280",fontSize:9,fontFamily:"'DM Mono',monospace",fontWeight:700,borderRadius:10,padding:"1px 7px"}}>{count}</span>}
+      <div style={{flex:1,height:1,background:"#ede9e4"}}/>
     </div>
   );
 }
 
 // ── Note Card ─────────────────────────────────────────────────────────────────
-function NoteCard({note,cats,onDone,onSnooze,onEdit,onDelete}){
-  const cat=cats.find(c=>c.id===note.catId)||cats[0]||{color:"#6b7280",bg:"#f3f4f6",label:"Note"};
-  const dl=dueLabel(note.dueDate);
+function NoteCard({note,onDone,onSnooze,onEdit,onDelete,onReview,showList}){
   const [open,setOpen]=useState(false);
+  const dl=dueLabel(note.dueDate);
+  const lm=getListMeta(note.list||"inbox");
+
   return(
-    <div className="note-card" style={{borderLeft:`3px solid ${cat.color}`}}>
-      <div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"13px 14px 11px"}}>
-        <button onClick={()=>onDone(note.id)} style={{flexShrink:0,marginTop:3,width:22,height:22,borderRadius:"50%",border:`2px solid ${cat.color}`,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.12s"}}
-          onMouseEnter={e=>e.currentTarget.style.background=cat.color+"22"}
+    <div className="note-card" style={{borderLeft:`3px solid ${lm.color}`}}>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"12px 14px 10px"}}>
+        <button onClick={()=>onDone(note.id)} style={{flexShrink:0,marginTop:3,width:20,height:20,borderRadius:"50%",border:`2px solid ${lm.color}`,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.12s"}}
+          onMouseEnter={e=>e.currentTarget.style.background=lm.color+"22"}
           onMouseLeave={e=>e.currentTarget.style.background="transparent"}
         />
         <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
-            <Pill cat={cat}/>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
+            {showList&&<ListTag listId={note.list||"inbox"}/>}
+            {note.context&&<span className="ctx-badge">{note.context}</span>}
             {dl&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:dl.urgent?"#dc2626":"#9ca3af",fontWeight:dl.urgent?700:400}}>{dl.text}</span>}
-            {note.updatedAt&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#c4b5a0",fontStyle:"italic"}}>edited</span>}
+            {note.hasConvo&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#7c3aed",fontWeight:600}}>💬 reviewed</span>}
           </div>
-          <p style={{margin:0,fontSize:14,lineHeight:1.65,color:"#1f2937",fontFamily:"'Lora',serif",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{note.text}</p>
+          <p style={{margin:0,fontSize:14,lineHeight:1.6,color:"#1f2937",fontFamily:"'Lora',serif",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{note.text}</p>
+          {note.nextAction&&<p style={{margin:"6px 0 0",fontSize:12,color:"#2563eb",fontFamily:"'DM Mono',monospace"}}>→ {note.nextAction}</p>}
         </div>
-        <button onClick={()=>setOpen(o=>!o)} style={{background:"none",color:"#d1d5db",fontSize:14,padding:"2px 4px",lineHeight:1,flexShrink:0}}>{open?"▲":"▾"}</button>
+        <button onClick={()=>setOpen(o=>!o)} style={{background:"none",color:"#d1d5db",fontSize:13,padding:"2px 4px",lineHeight:1,flexShrink:0}}>{open?"▲":"▾"}</button>
       </div>
       {open&&(
         <div className="note-actions">
           <button className="action-btn" style={{background:"#eff6ff",color:"#2563eb"}} onClick={()=>{onEdit(note);setOpen(false);}}>✎ Edit</button>
+          <button className="action-btn" style={{background:"#f5f3ff",color:"#7c3aed"}} onClick={()=>{onReview(note);setOpen(false);}}>◎ Review</button>
           <SnoozeBtn onSnooze={d=>{onSnooze(note.id,d);setOpen(false);}}/>
-          <button className="action-btn" style={{background:"#fef2f2",color:"#dc2626"}} onClick={()=>onDelete(note.id)}>✕ Delete</button>
+          <button className="action-btn" style={{background:"#fef2f2",color:"#dc2626"}} onClick={()=>onDelete(note.id)}>✕</button>
         </div>
       )}
     </div>
@@ -270,7 +312,7 @@ function SnoozeBtn({onSnooze}){
       {open&&(
         <div style={{position:"absolute",bottom:38,left:0,background:"#fff",border:"1px solid #e5e7eb",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:200,minWidth:140,overflow:"hidden"}} className="pop">
           {opts.map(o=>(
-            <button key={o.days} onClick={()=>{onSnooze(o.days);setOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"11px 16px",background:"none",border:"none",borderBottom:"1px solid #f3f4f6",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#374151",cursor:"pointer"}}
+            <button key={o.days} onClick={()=>{onSnooze(o.days);setOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 16px",background:"none",border:"none",borderBottom:"1px solid #f3f4f6",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#374151",cursor:"pointer"}}
               onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
               onMouseLeave={e=>e.currentTarget.style.background="none"}
             >{o.label}</button>
@@ -281,76 +323,268 @@ function SnoozeBtn({onSnooze}){
   );
 }
 
-function SectionHead({label,count,color}){
+// ── GTD Review Sheet — per-note persistent conversations ──────────────────────
+function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNextInbox}){
+  const savedMsgs=convos[note.id]||[];
+  const [messages,setMessages]=useState(savedMsgs);
+  const [input,setInput]=useState("");
+  const [thinking,setThinking]=useState(false);
+  const [decided,setDecided]=useState(false);
+  const [showDefer,setShowDefer]=useState(false);
+  const [showAction,setShowAction]=useState(false);
+  const [showContext,setShowContext]=useState(false);
+  const [actionText,setActionText]=useState(note.nextAction||"");
+  const [deferDate,setDeferDate]=useState(note.dueDate||"");
+  const [selectedCtx,setSelectedCtx]=useState(note.context||"");
+  const bottomRef=useRef(null);
+  const inputRef=useRef(null);
+  const lm=getListMeta(note.list||"inbox");
+
+  // Open conversation — resume or start fresh
+  useEffect(()=>{
+    if(savedMsgs.length===0){
+      // Start fresh
+      openConvo();
+    } else {
+      // Resume — add a continuation message
+      resumeConvo();
+    }
+  },[]);
+
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,thinking]);
+
+  const resumeConvo=async()=>{
+    if(!apiKey)return;
+    setThinking(true);
+    const prevSummary=savedMsgs.map(m=>`${m.role}: ${m.content}`).slice(-4).join("\n");
+    try{
+      const resumeMsg=await callClaude(apiKey,
+        [{role:"user",content:`Briefly acknowledge you remember our previous discussion about this item, then continue from where we left off or ask what's changed.\n\nPrevious conversation:\n${prevSummary}`}],
+        `You are a GTD coach. The item is: "${note.text}". Be concise, one question at a time.`
+      );
+      const newMsgs=[...savedMsgs,{role:"assistant",content:resumeMsg,ts:Date.now()}];
+      setMessages(newMsgs);
+      onSaveConvo(note.id,newMsgs);
+    }catch{
+      setMessages(m=>[...m,{role:"assistant",content:"Welcome back. Where did we get to with this one?",ts:Date.now()}]);
+    }
+    setThinking(false);
+  };
+
+  const openConvo=async()=>{
+    if(!apiKey){
+      setMessages([{role:"assistant",content:"Add your Anthropic API key in Settings to enable GTD review conversations.",ts:Date.now()}]);
+      return;
+    }
+    setThinking(true);
+    try{
+      const r=await gtdClarify(apiKey,[{role:"user",content:`Let's process this: "${note.text}"`}],note.text,"");
+      const msgs=[{role:"assistant",content:r,ts:Date.now()}];
+      setMessages(msgs);
+      onSaveConvo(note.id,msgs);
+    }catch{
+      const msgs=[{role:"assistant",content:"Is this actionable — can you do something about it?",ts:Date.now()}];
+      setMessages(msgs);
+      onSaveConvo(note.id,msgs);
+    }
+    setThinking(false);
+  };
+
+  const send=async()=>{
+    if(!input.trim()||thinking)return;
+    const userMsg={role:"user",content:input.trim(),ts:Date.now()};
+    const next=[...messages,userMsg];
+    setMessages(next);setInput("");setThinking(true);
+    onSaveConvo(note.id,next);
+    try{
+      const r=await gtdClarify(apiKey,next.map(({role,content})=>({role,content})),note.text,"");
+      const withReply=[...next,{role:"assistant",content:r,ts:Date.now()}];
+      setMessages(withReply);
+      onSaveConvo(note.id,withReply);
+    }catch{
+      const withErr=[...next,{role:"assistant",content:"Got it — what do you want to do with this?",ts:Date.now()}];
+      setMessages(withErr);
+      onSaveConvo(note.id,withErr);
+    }
+    setThinking(false);
+  };
+
+  const decide=(list,opts={})=>{
+    const upd={
+      ...note,list,
+      context:opts.context||selectedCtx||null,
+      dueDate:opts.date||deferDate||null,
+      nextAction:opts.nextAction||actionText||null,
+      updatedAt:new Date().toISOString(),
+      hasConvo:true,
+    };
+    if(list==="done"){upd.done=true;upd.doneAt=new Date().toISOString();}
+    // Add decision to conversation
+    const decMsg={role:"assistant",content:`✓ Decision: moved to ${getListMeta(list).label}${opts.nextAction?` · Next: ${opts.nextAction}`:""}${opts.date?` · Due: ${fmtDate(opts.date)}`:""}`,ts:Date.now(),isDecision:true};
+    const finalMsgs=[...messages,decMsg];
+    onSaveConvo(note.id,finalMsgs);
+    onUpdateNote(upd);
+    setDecided(true);
+  };
+
+  const formatTs=ts=>{
+    if(!ts)return"";
+    return new Date(ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+  };
+
   return(
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-      <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:700,color:color||"#6b7280",whiteSpace:"nowrap"}}>{label}</span>
-      {count>0&&<span style={{background:(color||"#6b7280")+"18",color:color||"#6b7280",fontSize:9,fontFamily:"'DM Mono',monospace",fontWeight:700,borderRadius:10,padding:"1px 7px"}}>{count}</span>}
-      <div style={{flex:1,height:1,background:"#f0ede9"}}/>
+    <div className="overlay">
+      <div className="sheet-panel sheet" style={{maxHeight:"95vh"}}>
+        <div className="sheet-handle"/>
+        <div className="sheet-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.1em"}}>GTD Review</span>
+              {savedMsgs.length>0&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"1px 6px"}}>resumed</span>}
+            </div>
+            <button onClick={onClose} style={{background:"none",color:"#ccc",fontSize:20,padding:"2px 6px"}}>✕</button>
+          </div>
+          {/* Current item */}
+          <div style={{background:"#f9faf8",border:"1px solid #e8e6e3",borderLeft:`3px solid ${lm.color}`,borderRadius:9,padding:"10px 13px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
+              <ListTag listId={note.list||"inbox"}/>
+              {note.context&&<span className="ctx-badge">{note.context}</span>}
+            </div>
+            <p style={{margin:0,fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif",lineHeight:1.6}}>{note.text}</p>
+          </div>
+        </div>
+
+        {/* Chat — full history */}
+        <div style={{flex:1,overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:8,WebkitOverflowScrolling:"touch"}}>
+          {messages.map((m,i)=>(
+            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="assistant"?"flex-start":"flex-end"}}>
+              <div className={`bubble ${m.role==="assistant"?"bubble-ai":"bubble-user"}`} style={{background:m.isDecision?"#f0fdf4":undefined,color:m.isDecision?"#065f46":undefined,borderColor:m.isDecision?"#86efac":undefined}}>
+                {m.content}
+              </div>
+              {m.ts&&<div className="bubble-meta">{formatTs(m.ts)}</div>}
+            </div>
+          ))}
+          {thinking&&<div className="bubble bubble-ai"><span style={{fontSize:20,animation:"pulse 1s infinite",display:"inline-block"}}>…</span></div>}
+          <div ref={bottomRef}/>
+        </div>
+
+        {/* Input */}
+        {!decided&&(
+          <div style={{padding:"8px 14px 0",borderTop:"1px solid #f3f4f6",flexShrink:0}}>
+            <div style={{display:"flex",gap:8}}>
+              <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Reply to Claude…" disabled={thinking}
+                style={{flex:1,border:"1px solid #e5e7eb",borderRadius:10,padding:"11px 14px",fontSize:15,fontFamily:"'Lora',serif",color:"#1f2937"}}
+              />
+              <button onClick={send} disabled={!input.trim()||thinking} style={{background:input.trim()&&!thinking?"#1f2937":"#f3f4f6",borderRadius:10,padding:"11px 18px",color:input.trim()&&!thinking?"#fff":"#9ca3af",fontSize:14}}>↑</button>
+            </div>
+          </div>
+        )}
+
+        {/* GTD Decision buttons */}
+        {!decided&&(
+          <div style={{padding:"10px 14px 28px",flexShrink:0}}>
+            <p style={{margin:"0 0 8px",fontSize:9,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af"}}>File it</p>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+              <button className="dec-btn" style={{background:"#f0fdf4",color:"#059669",borderColor:"#86efac"}} onClick={()=>decide("done")}>✓ Done</button>
+              <button className="dec-btn" style={{background:showAction?"#eff6ff":"#fff",color:"#2563eb",borderColor:showAction?"#93c5fd":"#e5e7eb"}} onClick={()=>{setShowAction(v=>!v);setShowDefer(false);setShowContext(false);}}>⚡ Next action</button>
+              <button className="dec-btn" style={{color:"#7c3aed"}} onClick={()=>decide("project")}>📁 Project</button>
+              <button className="dec-btn" style={{color:"#d97706"}} onClick={()=>decide("waiting")}>⏳ Waiting</button>
+              <button className="dec-btn" style={{background:showDefer?"#fffbeb":"#fff",color:"#d97706",borderColor:showDefer?"#fcd34d":"#e5e7eb"}} onClick={()=>{setShowDefer(v=>!v);setShowAction(false);setShowContext(false);}}>📅 Defer</button>
+              <button className="dec-btn" style={{color:"#0891b2"}} onClick={()=>decide("someday")}>☁ Someday</button>
+              <button className="dec-btn" style={{color:"#059669"}} onClick={()=>decide("reference")}>📚 Reference</button>
+              <button className="dec-btn" style={{color:"#dc2626"}} onClick={()=>decide("done",{trash:true})}>🗑 Trash</button>
+            </div>
+
+            {/* Next action input */}
+            {showAction&&(
+              <div style={{animation:"pop 0.15s ease",marginBottom:8}}>
+                <input value={actionText} onChange={e=>setActionText(e.target.value)} placeholder="Exact next physical action…"
+                  style={{width:"100%",border:"1px solid #bfdbfe",borderRadius:9,padding:"10px 13px",fontSize:14,fontFamily:"'Lora',serif",color:"#1f2937",marginBottom:8}}
+                />
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                  {GTD_CONTEXTS.map(c=>(
+                    <button key={c} onClick={()=>setSelectedCtx(c===selectedCtx?"":c)} style={{background:selectedCtx===c?"#1f2937":"#f3f4f6",color:selectedCtx===c?"#fff":"#6b7280",border:"none",borderRadius:6,padding:"5px 10px",fontSize:10,fontFamily:"'DM Mono',monospace"}}>{c}</button>
+                  ))}
+                </div>
+                <button onClick={()=>decide("next",{nextAction:actionText,context:selectedCtx,date:deferDate||null})} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:9,padding:"10px",color:"#fff",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>Save as Next Action →</button>
+              </div>
+            )}
+
+            {/* Defer picker */}
+            {showDefer&&(
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",animation:"pop 0.15s ease"}}>
+                {[3,7,14,30].map(d=>(
+                  <button key={d} onClick={()=>decide("inbox",{date:addDays(d)})} style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 12px",color:"#d97706",fontSize:11,fontFamily:"'DM Mono',monospace"}}>+{d===3?"3d":d===7?"1w":d===14?"2w":"1m"}</button>
+                ))}
+                <input type="date" value={deferDate} min={addDays(1)} onChange={e=>setDeferDate(e.target.value)} style={{border:"1px solid #e5e7eb",borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#1f2937",flex:1}}/>
+                {deferDate&&<button onClick={()=>decide("inbox",{date:deferDate})} style={{background:"#d97706",borderRadius:8,padding:"8px 12px",color:"#fff",fontSize:12}}>→</button>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {decided&&(
+          <div className="sheet-footer" style={{display:"flex",gap:8}}>
+            {onNextInbox&&<button onClick={onNextInbox} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Next inbox item →</button>}
+            <button onClick={onClose} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>Done</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Brain Dump Sheet — 3 stages ───────────────────────────────────────────────
-// Stage 1: write  →  Stage 2: raw indented list  →  Stage 3: sorted with categories
-function BrainDumpSheet({cats,apiKey,onSaveAll,onClose}){
-  const [stage,setStage]   = useState(1); // 1|2|3
-  const [text,setText]     = useState("");
-  const [items,setItems]   = useState([]); // [{id,text,indent,catId?,dueDate?,_keep}]
-  const [busy,setBusy]     = useState(false);
-  const [error,setError]   = useState("");
-  const taRef = useRef(null);
-  useEffect(()=>{ setTimeout(()=>taRef.current?.focus(),120); },[]);
+// ── Brain Dump Sheet ──────────────────────────────────────────────────────────
+function BrainDumpSheet({apiKey,onSaveAll,onClose}){
+  const [stage,setStage]=useState(1);
+  const [text,setText]=useState("");
+  const [items,setItems]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  const taRef=useRef(null);
+  useEffect(()=>{setTimeout(()=>taRef.current?.focus(),120);},[]);
 
-  // Stage 1 → 2: extract raw items
-  const handleExtract = async () => {
-    if (!text.trim()) return;
-    if (!apiKey) { setError("Add your Anthropic API key in Settings first."); return; }
-    setBusy(true); setError("");
-    try {
-      const raw = await extractItems(apiKey, text);
-      setItems(raw.map(i=>({...i,id:uid(),_keep:true})));
-      setStage(2);
-    } catch(e) { setError(e.message||"Couldn't extract — try again."); }
+  const handleExtract=async()=>{
+    if(!text.trim())return;
+    if(!apiKey){setError("Add your Anthropic API key in Settings first.");return;}
+    setBusy(true);setError("");
+    try{const raw=await extractItems(apiKey,text);setItems(raw.map(i=>({...i,id:uid(),_keep:true})));setStage(2);}
+    catch(e){setError(e.message||"Couldn't extract — try again.");}
     setBusy(false);
   };
 
-  // Stage 2 → 3: sort/categorise
-  const handleSort = async () => {
-    if (!apiKey) { setError("Add your Anthropic API key in Settings first."); return; }
-    setBusy(true); setError("");
-    try {
-      const kept = items.filter(i=>i._keep);
-      const sorted = await sortItems(apiKey, kept, cats);
-      // Merge back — kept items get categories, excluded stay excluded
-      let si = 0;
-      setItems(items.map(i => i._keep ? {...i,...sorted[si++]} : i));
+  const handleSort=async()=>{
+    if(!apiKey){setError("API key needed.");return;}
+    setBusy(true);setError("");
+    try{
+      const kept=items.filter(i=>i._keep);
+      const sorted=await sortItems(apiKey,kept);
+      let si=0;
+      setItems(items.map(i=>i._keep?{...i,...sorted[si++]}:i));
       setStage(3);
-    } catch(e) { setError(e.message||"Couldn't sort — try again."); }
+    }catch(e){setError(e.message||"Couldn't sort — try again.");}
     setBusy(false);
   };
 
-  const moveIndent  = (id,dir) => setItems(it=>it.map(i=>i.id===id?{...i,indent:Math.max(0,Math.min(2,(i.indent||0)+dir))}:i));
-  const toggleKeep  = id => setItems(it=>it.map(i=>i.id===id?{...i,_keep:!i._keep}:i));
-  const removeItem  = id => setItems(it=>it.filter(i=>i.id!==id));
-  const updateCat   = (id,catId) => setItems(it=>it.map(i=>i.id===id?{...i,catId}:i));
-  const updateDate  = (id,dd) => setItems(it=>it.map(i=>i.id===id?{...i,dueDate:dd||null}:i));
-  const updateText  = (id,t) => setItems(it=>it.map(i=>i.id===id?{...i,text:t}:i));
+  const moveIndent=(id,dir)=>setItems(it=>it.map(i=>i.id===id?{...i,indent:Math.max(0,Math.min(2,(i.indent||0)+dir))}:i));
+  const toggleKeep=id=>setItems(it=>it.map(i=>i.id===id?{...i,_keep:!i._keep}:i));
+  const removeItem=id=>setItems(it=>it.filter(i=>i.id!==id));
+  const updateList=(id,list)=>setItems(it=>it.map(i=>i.id===id?{...i,list}:i));
+  const updateText=(id,t)=>setItems(it=>it.map(i=>i.id===id?{...i,text:t}:i));
+  const updateDate=(id,dd)=>setItems(it=>it.map(i=>i.id===id?{...i,dueDate:dd||null}:i));
 
-  const handleSave = () => {
-    const toSave = items.filter(i=>i._keep).map(({_keep,indent,...r})=>({
-      ...r, done:false, snoozedUntil:null,
-      createdAt:new Date().toISOString(), updatedAt:null
+  const handleSave=()=>{
+    const toSave=items.filter(i=>i._keep).map(({_keep,indent,...r})=>({
+      ...r,done:false,snoozedUntil:null,hasConvo:false,
+      createdAt:new Date().toISOString(),updatedAt:null
     }));
-    onSaveAll(toSave);
-    onClose();
+    onSaveAll(toSave);onClose();
   };
 
-  const stageLabels = ["Write","Review","Sort"];
-  const stageHints  = [
-    "Just write — I'll pull it apart",
-    "Adjust groupings, remove anything you don't need",
-    "Categories and dates assigned — tweak anything before saving"
+  const stageInfo=[
+    {label:"Write",hint:"Stream of consciousness — no structure needed"},
+    {label:"Review",hint:"Adjust groupings using ← →, remove what you don't need"},
+    {label:"Sort",hint:"GTD lists assigned — tweak before saving"},
   ];
 
   return(
@@ -360,20 +594,20 @@ function BrainDumpSheet({cats,apiKey,onSaveAll,onClose}){
         <div className="sheet-header">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
             <div>
-              <h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111",marginBottom:3}}>Brain dump</h2>
-              <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>{stageHints[stage-1]}</p>
+              <h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111",marginBottom:2}}>Brain dump</h2>
+              <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>{stageInfo[stage-1].hint}</p>
             </div>
             <button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button>
           </div>
-          {/* Step bar */}
+          {/* Step indicator */}
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            {stageLabels.map((l,i)=>(
+            {stageInfo.map((s,i)=>(
               <React.Fragment key={i}>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
-                  <div style={{width:20,height:20,borderRadius:"50%",background:stage>i+1?"#10b981":stage===i+1?"#1f2937":"#e5e7eb",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.3s"}}>
+                  <div style={{width:20,height:20,borderRadius:"50%",background:stage>i+1?"#10b981":stage===i+1?"#1f2937":"#e5e7eb",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                     <span style={{fontSize:9,color:stage>=i+1?"#fff":"#9ca3af",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{stage>i+1?"✓":i+1}</span>
                   </div>
-                  <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:stage===i+1?"#1f2937":"#9ca3af",letterSpacing:"0.05em"}}>{l}</span>
+                  <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:stage===i+1?"#1f2937":"#9ca3af"}}>{s.label}</span>
                 </div>
                 {i<2&&<div style={{flex:1,height:1,background:"#e5e7eb"}}/>}
               </React.Fragment>
@@ -382,74 +616,57 @@ function BrainDumpSheet({cats,apiKey,onSaveAll,onClose}){
         </div>
 
         <div className="sheet-body">
-
-          {/* ── Stage 1: write ── */}
           {stage===1&&(
             <>
               <textarea ref={taRef} value={text} onChange={e=>setText(e.target.value)} className="input-base"
-                placeholder={"Just write everything on your mind — stream of consciousness, no structure needed.\n\nNeed to call accountant about year end. Idea for automating reports — could save hours. Pick up dry cleaning today. Reply to Sarah asap. Should look into that new library at some point. And I keep forgetting to book the car in."}
+                placeholder={"Just write everything that's in your head…\n\nNeed to call accountant about year end. Idea for automating the reports. Pick up dry cleaning. Reply to Sarah asap. Should look into that new library."}
                 rows={9} style={{resize:"none",lineHeight:1.75,marginBottom:14}}
               />
               {error&&<p style={{color:"#dc2626",fontSize:12,fontFamily:"'DM Mono',monospace",marginBottom:12}}>{error}</p>}
               <button onClick={handleExtract} disabled={!text.trim()||busy} style={{width:"100%",background:text.trim()&&!busy?"#1f2937":"#f3f4f6",color:text.trim()&&!busy?"#fff":"#9ca3af",borderRadius:10,padding:"13px",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                {busy?<><span style={{fontSize:18,animation:"spin 1s linear infinite",display:"inline-block"}}>✦</span> Extracting…</>:"Extract items →"}
+                {busy?<><span style={{fontSize:18,animation:"spin 1s linear infinite",display:"inline-block"}}>✦</span>Extracting…</>:"Extract items →"}
               </button>
             </>
           )}
 
-          {/* ── Stage 2: raw indented list ── */}
           {stage===2&&(
             <>
-              <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",marginBottom:16,lineHeight:1.6}}>
-                Here's what I pulled out. Use <strong style={{fontStyle:"normal"}}>← →</strong> to adjust groupings, tap to remove anything. When you're happy, hit Sort.
-              </p>
-
-              {items.map((item,idx)=>(
-                <div key={item.id} className={`dump-item indent-${item.indent||0} ${!item._keep?"excluded":""}`} style={{opacity:item._keep?1:0.35}}>
-                  {/* indent indicator */}
-                  {(item.indent||0)>0&&(
-                    <div style={{width:3,alignSelf:"stretch",background:"#e5e7eb",borderRadius:2,flexShrink:0,marginRight:4}}/>
-                  )}
+              <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",marginBottom:14,lineHeight:1.6}}>Use ← → to group related items. Hit Sort when ready.</p>
+              {items.map(item=>(
+                <div key={item.id} className={`dump-item indent-${item.indent||0}`} style={{opacity:item._keep?1:0.35}}>
+                  {(item.indent||0)>0&&<div style={{width:3,alignSelf:"stretch",background:"#e5e7eb",borderRadius:2,flexShrink:0,marginRight:4}}/>}
                   <div style={{flex:1,minWidth:0}}>
-                    <input value={item.text} onChange={e=>updateText(item.id,e.target.value)}
-                      style={{width:"100%",border:"none",background:"transparent",fontSize:13.5,fontFamily:"'Lora',serif",color:"#1f2937",lineHeight:1.5,padding:0}}
-                    />
+                    <input value={item.text} onChange={e=>updateText(item.id,e.target.value)} style={{width:"100%",border:"none",background:"transparent",fontSize:13.5,fontFamily:"'Lora',serif",color:"#1f2937",lineHeight:1.5,padding:0}}/>
                   </div>
                   <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"center"}}>
-                    {(item.indent||0)>0&&<button onClick={()=>moveIndent(item.id,-1)} style={{background:"#f3f4f6",border:"none",borderRadius:5,width:24,height:24,fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",justifyContent:"center"}} title="Unindent">←</button>}
-                    {(item.indent||0)<2&&<button onClick={()=>moveIndent(item.id,1)} style={{background:"#f3f4f6",border:"none",borderRadius:5,width:24,height:24,fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",justifyContent:"center"}} title="Indent">→</button>}
+                    {(item.indent||0)>0&&<button onClick={()=>moveIndent(item.id,-1)} style={{background:"#f3f4f6",border:"none",borderRadius:5,width:24,height:24,fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>}
+                    {(item.indent||0)<2&&<button onClick={()=>moveIndent(item.id,1)} style={{background:"#f3f4f6",border:"none",borderRadius:5,width:24,height:24,fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",justifyContent:"center"}}>→</button>}
                     <button onClick={()=>toggleKeep(item.id)} style={{background:item._keep?"#fef2f2":"#f0fdf4",border:"none",borderRadius:5,width:24,height:24,fontSize:11,color:item._keep?"#dc2626":"#059669",display:"flex",alignItems:"center",justifyContent:"center"}}>{item._keep?"✕":"+"}</button>
                   </div>
                 </div>
               ))}
-
               {error&&<p style={{color:"#dc2626",fontSize:12,fontFamily:"'DM Mono',monospace",marginTop:8}}>{error}</p>}
             </>
           )}
 
-          {/* ── Stage 3: sorted with categories ── */}
           {stage===3&&(
             <>
-              <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",marginBottom:16,lineHeight:1.6}}>
-                Categories and dates assigned. Tweak anything, then save.
-              </p>
-
+              <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",marginBottom:14,lineHeight:1.6}}>GTD lists assigned. Tweak anything before saving.</p>
               {items.filter(i=>i._keep).map(item=>{
-                const cat=cats.find(c=>c.id===item.catId)||cats[0]||{color:"#6b7280",bg:"#f3f4f6",label:"Note"};
+                const lm=getListMeta(item.list||"inbox");
                 return(
-                  <div key={item.id} style={{background:"#fff",border:`1px solid #e5e7eb`,borderLeft:`3px solid ${cat.color}`,borderRadius:9,padding:"12px 14px",marginBottom:8,marginLeft:`${(item.indent||0)*20}px`,transition:"margin 0.15s"}}>
-                    <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                      <button onClick={()=>toggleKeep(item.id)} style={{flexShrink:0,marginTop:3,width:18,height:18,borderRadius:"50%",border:`2px solid ${cat.color}`,background:cat.color,fontSize:9,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
+                  <div key={item.id} style={{background:"#fff",border:"1px solid #e8e6e3",borderLeft:`3px solid ${lm.color}`,borderRadius:9,padding:"12px 14px",marginBottom:7,marginLeft:`${(item.indent||0)*18}px`}}>
+                    <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
-                        <input value={item.text} onChange={e=>updateText(item.id,e.target.value)}
-                          style={{width:"100%",border:"none",background:"transparent",fontSize:14,fontFamily:"'Lora',serif",color:"#1f2937",lineHeight:1.5,marginBottom:8,padding:0}}
-                        />
+                        <input value={item.text} onChange={e=>updateText(item.id,e.target.value)} style={{width:"100%",border:"none",background:"transparent",fontSize:14,fontFamily:"'Lora',serif",color:"#1f2937",lineHeight:1.5,marginBottom:8,padding:0}}/>
                         <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-                          {cats.map(c=><button key={c.id} onClick={()=>updateCat(item.id,c.id)} className="cat-chip" style={{background:item.catId===c.id?c.bg:"transparent",borderColor:item.catId===c.id?c.color:"#e5e7eb",color:item.catId===c.id?c.color:"#9ca3af"}}>{c.label}</button>)}
-                          <input type="date" value={item.dueDate||""} onChange={e=>updateDate(item.id,e.target.value)} style={{border:"1px solid #e5e7eb",borderRadius:6,padding:"3px 8px",fontSize:11,fontFamily:"'DM Mono',monospace",color:item.dueDate?"#1f2937":"#9ca3af",background:item.dueDate?"#f0fdf4":"#fafafa"}}/>
+                          {GTD_LISTS.filter(l=>l.id!=="done").map(l=>(
+                            <button key={l.id} onClick={()=>updateList(item.id,l.id)} style={{background:item.list===l.id?l.color+"18":"transparent",border:`1px solid ${item.list===l.id?l.color:"#e5e7eb"}`,borderRadius:5,padding:"3px 8px",fontSize:9,fontFamily:"'DM Mono',monospace",color:item.list===l.id?l.color:"#9ca3af",fontWeight:600,letterSpacing:"0.07em"}}>{l.icon} {l.label}</button>
+                          ))}
+                          <input type="date" value={item.dueDate||""} onChange={e=>updateDate(item.id,e.target.value)} style={{border:"1px solid #e5e7eb",borderRadius:5,padding:"3px 8px",fontSize:10,fontFamily:"'DM Mono',monospace",color:item.dueDate?"#1f2937":"#9ca3af",background:item.dueDate?"#f0fdf4":"#fafafa"}}/>
                         </div>
                       </div>
-                      <button onClick={()=>removeItem(item.id)} style={{background:"none",color:"#d1d5db",fontSize:18,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+                      <button onClick={()=>removeItem(item.id)} style={{background:"none",color:"#d1d5db",fontSize:17,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
                     </div>
                   </div>
                 );
@@ -458,226 +675,21 @@ function BrainDumpSheet({cats,apiKey,onSaveAll,onClose}){
           )}
         </div>
 
-        {/* Footer */}
         <div className="sheet-footer">
-          {stage===1&&null}
-
           {stage===2&&(
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{setStage(1);setItems([]);}} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>← Rewrite</button>
-              <button onClick={handleSort} disabled={busy||items.filter(i=>i._keep).length===0} style={{flex:2,background:busy?"#f3f4f6":"#1f2937",border:"none",borderRadius:10,padding:"12px",color:busy?"#9ca3af":"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <button onClick={handleSort} disabled={busy||items.filter(i=>i._keep).length===0} style={{flex:2,background:busy?"#f3f4f6":"#1f2937",borderRadius:10,padding:"12px",color:busy?"#9ca3af":"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                 {busy?<><span style={{fontSize:16,animation:"spin 1s linear infinite",display:"inline-block"}}>✦</span>Sorting…</>:`Sort ${items.filter(i=>i._keep).length} items →`}
               </button>
             </div>
           )}
-
           {stage===3&&(
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setStage(2)} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>← Back</button>
-              <button onClick={handleSave} style={{flex:2,background:"#1f2937",border:"none",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save {items.filter(i=>i._keep).length} items →</button>
+              <button onClick={handleSave} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save {items.filter(i=>i._keep).length} items →</button>
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── GTD Review Sheet ──────────────────────────────────────────────────────────
-const GTD_SYSTEM=`You are a GTD coach helping someone process their inbox one item at a time.
-Be concise and conversational. Ask ONE focused question at a time.
-Guide: Is it actionable? What's the next physical action? Do/Defer/Delegate/Drop/Someday?
-After 2-3 exchanges nudge toward a decision. When they decide, acknowledge briefly and stop.`;
-
-function ReviewSheet({notes,cats,apiKey,onUpdateNote,onClose}){
-  const queue=notes.filter(isVisible);
-  const [idx,setIdx]=useState(0);
-  const [messages,setMessages]=useState([]);
-  const [input,setInput]=useState("");
-  const [thinking,setThinking]=useState(false);
-  const [decided,setDecided]=useState(false);
-  const [summary,setSummary]=useState([]);
-  const [done,setDone]=useState(false);
-  const [showDefer,setShowDefer]=useState(false);
-  const [showAction,setShowAction]=useState(false);
-  const [actionText,setActionText]=useState("");
-  const [deferDate,setDeferDate]=useState("");
-  const bottomRef=useRef(null);
-  const current=queue[idx];
-
-  useEffect(()=>{
-    if(!current)return;
-    setMessages([]); setDecided(false); setInput(""); setShowDefer(false); setShowAction(false); setActionText(""); setDeferDate("");
-    const cat=cats.find(c=>c.id===current.catId)||{label:"Note"};
-    const dl=dueLabel(current.dueDate);
-    openItem(`"${current.text}" [${cat.label}]${dl?` — ${dl.text}`:" — no date"}`);
-  },[idx]);
-
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,thinking]);
-
-  const openItem=async ctx=>{
-    if(!apiKey){setMessages([{role:"assistant",content:"Add your Anthropic API key in Settings to enable the review conversation."}]);return;}
-    setThinking(true);
-    try{const r=await callClaude(apiKey,[{role:"user",content:`Process this item: ${ctx}`}],GTD_SYSTEM);setMessages([{role:"assistant",content:r}]);}
-    catch{setMessages([{role:"assistant",content:"What's the situation with this one — clear next action, or something blocking it?"}]);}
-    setThinking(false);
-  };
-
-  const send=async()=>{
-    if(!input.trim()||thinking)return;
-    const msg={role:"user",content:input.trim()};
-    const next=[...messages,msg];
-    setMessages(next);setInput("");setThinking(true);
-    try{const r=await callClaude(apiKey,next,GTD_SYSTEM);setMessages(m=>[...m,{role:"assistant",content:r}]);}
-    catch{setMessages(m=>[...m,{role:"assistant",content:"Got it. What do you want to do with this?"}]);}
-    setThinking(false);
-  };
-
-  const decide=(decision,opts={})=>{
-    let upd={...current};let entry={text:current.text};
-    if(decision==="done"){upd.done=true;upd.doneAt=new Date().toISOString();entry.label="✓ Done";entry.color="#059669";}
-    else if(decision==="drop"){upd.done=true;upd.doneAt=new Date().toISOString();upd.dropped=true;entry.label="✕ Dropped";entry.color="#9ca3af";}
-    else if(decision==="defer"){upd.dueDate=opts.date||addDays(7);upd.snoozedUntil=null;entry.label=`→ Deferred to ${fmtDate(upd.dueDate)}`;entry.color="#d97706";}
-    else if(decision==="action"){upd.text=opts.text||current.text;upd.dueDate=opts.date||addDays(1);upd.updatedAt=new Date().toISOString();entry.label="⚡ Next action set";entry.color="#2563eb";entry.detail=upd.text;}
-    else if(decision==="someday"){upd.snoozedUntil=addDays(30);upd.dueDate=null;entry.label="☁ Someday/Maybe";entry.color="#7c3aed";}
-    onUpdateNote(upd);setSummary(s=>[...s,entry]);setDecided(true);
-    setTimeout(()=>{if(idx+1<queue.length)setIdx(i=>i+1);else setDone(true);},700);
-  };
-
-  const skip=()=>{
-    setSummary(s=>[...s,{text:current.text,label:"— Skipped",color:"#d1d5db"}]);
-    if(idx+1<queue.length)setIdx(i=>i+1);else setDone(true);
-  };
-
-  if(done)return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
-        <div className="sheet-handle"/>
-        <div style={{padding:"24px 24px 0",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:10}}>✦</div>
-          <h2 style={{fontFamily:"'Lora',serif",fontWeight:400,fontSize:22,marginBottom:4}}>Review complete</h2>
-          <p style={{fontSize:12,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>{summary.length} items processed</p>
-        </div>
-        <div className="sheet-body">
-          {summary.map((s,i)=>(
-            <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderBottom:"1px solid #f3f4f6"}}>
-              <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:s.color,fontWeight:600,flexShrink:0,minWidth:120}}>{s.label}</span>
-              <div><p style={{fontSize:13,color:"#374151",fontFamily:"'Lora',serif",margin:0}}>{s.text}</p>{s.detail&&<p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace",margin:"2px 0 0"}}>→ {s.detail}</p>}</div>
-            </div>
-          ))}
-        </div>
-        <div className="sheet-footer"><button onClick={onClose} style={{width:"100%",background:"#1f2937",borderRadius:10,padding:"13px",color:"#fff",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Back to notes</button></div>
-      </div>
-    </div>
-  );
-
-  if(!current)return null;
-  const cat=cats.find(c=>c.id===current.catId)||{color:"#6b7280",bg:"#f3f4f6",label:"Note"};
-  const dl=dueLabel(current.dueDate);
-
-  return(
-    <div className="overlay">
-      <div className="sheet-panel sheet" style={{maxHeight:"95vh"}}>
-        <div className="sheet-handle"/>
-        <div className="sheet-header">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.1em"}}>Review · {idx+1} of {queue.length}</span>
-            <button onClick={onClose} style={{background:"none",color:"#ccc",fontSize:20,padding:"2px 6px"}}>✕</button>
-          </div>
-          <div style={{height:3,background:"#f3f4f6",borderRadius:2,marginBottom:12}}>
-            <div style={{height:"100%",background:"#1f2937",borderRadius:2,width:`${(idx/queue.length)*100}%`,transition:"width 0.3s"}}/>
-          </div>
-          <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderLeft:`3px solid ${cat.color}`,borderRadius:9,padding:"11px 14px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
-              <span className="pill" style={{color:cat.color,background:cat.bg}}>{cat.label}</span>
-              {dl&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:dl.urgent?"#dc2626":"#9ca3af",fontWeight:dl.urgent?700:400}}>{dl.text}</span>}
-            </div>
-            <p style={{margin:0,fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif",lineHeight:1.6}}>{current.text}</p>
-          </div>
-        </div>
-
-        <div style={{flex:1,overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:10,minHeight:80,WebkitOverflowScrolling:"touch"}}>
-          {messages.map((m,i)=><div key={i} className={`bubble ${m.role==="assistant"?"bubble-ai":"bubble-user"}`}>{m.content}</div>)}
-          {thinking&&<div className="bubble bubble-ai"><span style={{fontSize:20,animation:"pulse 1s infinite",display:"inline-block"}}>…</span></div>}
-          <div ref={bottomRef}/>
-        </div>
-
-        {!decided&&(
-          <div style={{padding:"8px 14px 0",borderTop:"1px solid #f3f4f6",flexShrink:0}}>
-            <div style={{display:"flex",gap:8}}>
-              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Reply…" disabled={thinking}
-                style={{flex:1,border:"1px solid #e5e7eb",borderRadius:10,padding:"11px 14px",fontSize:15,fontFamily:"'Lora',serif",color:"#1f2937",background:thinking?"#fafafa":"#fff"}}
-              />
-              <button onClick={send} disabled={!input.trim()||thinking} style={{background:input.trim()&&!thinking?"#1f2937":"#f3f4f6",borderRadius:10,padding:"11px 18px",color:input.trim()&&!thinking?"#fff":"#9ca3af",fontSize:14}}>↑</button>
-            </div>
-          </div>
-        )}
-
-        {!decided&&(
-          <div style={{padding:"12px 14px 28px",flexShrink:0}}>
-            <p style={{margin:"0 0 8px",fontSize:9,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af"}}>Decide</p>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-              <button className="dec-btn" style={{background:"#f0fdf4",color:"#059669",borderColor:"#86efac"}} onClick={()=>decide("done")}>✓ Done</button>
-              <button className="dec-btn" style={{background:showAction?"#eff6ff":"#fff",color:"#2563eb",borderColor:showAction?"#93c5fd":"#e5e7eb"}} onClick={()=>{setShowAction(v=>!v);setShowDefer(false);}}>⚡ Action</button>
-              <button className="dec-btn" style={{background:showDefer?"#fffbeb":"#fff",color:"#d97706",borderColor:showDefer?"#fcd34d":"#e5e7eb"}} onClick={()=>{setShowDefer(v=>!v);setShowAction(false);}}>→ Defer</button>
-              <button className="dec-btn" style={{color:"#7c3aed"}} onClick={()=>decide("someday")}>☁ Someday</button>
-              <button className="dec-btn" style={{color:"#9ca3af"}} onClick={()=>decide("drop")}>✕ Drop</button>
-              <button className="dec-btn" style={{color:"#d1d5db",borderColor:"#f3f4f6"}} onClick={skip}>Skip</button>
-            </div>
-            {showAction&&(
-              <div style={{display:"flex",gap:8,animation:"pop 0.15s ease"}}>
-                <input value={actionText} onChange={e=>setActionText(e.target.value)} placeholder="Next physical action…" style={{flex:1,border:"1px solid #bfdbfe",borderRadius:9,padding:"10px 13px",fontSize:14,fontFamily:"'Lora',serif",color:"#1f2937"}}/>
-                <button onClick={()=>decide("action",{text:actionText||current.text,date:addDays(1)})} style={{background:"#2563eb",borderRadius:9,padding:"10px 16px",color:"#fff",fontSize:12}}>Set</button>
-              </div>
-            )}
-            {showDefer&&(
-              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",animation:"pop 0.15s ease"}}>
-                {[3,7,14].map(d=><button key={d} onClick={()=>decide("defer",{date:addDays(d)})} style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"9px 14px",color:"#d97706",fontSize:11,fontFamily:"'DM Mono',monospace"}}>+{d===3?"3d":d===7?"1w":"2w"}</button>)}
-                <input type="date" value={deferDate} min={addDays(1)} onChange={e=>setDeferDate(e.target.value)} style={{border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 10px",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#1f2937",flex:1}}/>
-                {deferDate&&<button onClick={()=>decide("defer",{date:deferDate})} style={{background:"#d97706",borderRadius:8,padding:"9px 14px",color:"#fff",fontSize:12}}>→</button>}
-              </div>
-            )}
-          </div>
-        )}
-        {decided&&<div style={{padding:"16px",textAlign:"center",color:"#9ca3af",fontFamily:"'DM Mono',monospace",fontSize:11,flexShrink:0}}>Moving on…</div>}
-      </div>
-    </div>
-  );
-}
-
-// ── Categories Sheet ──────────────────────────────────────────────────────────
-function CatsSheet({cats,setCats,onClose}){
-  const [newLabel,setNewLabel]=useState("");
-  const [newColor,setNewColor]=useState(CAT_PALETTE[3]);
-  const inputRef=useRef(null);
-  useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),100);},[]);
-  const addCat=()=>{
-    if(!newLabel.trim())return;
-    setCats(cs=>[...cs,{id:uid(),label:newLabel.trim(),color:newColor,bg:newColor+"18"}]);
-    setNewLabel("");
-  };
-  const removeCat=id=>{if(DEFAULT_CATS.find(d=>d.id===id))return;setCats(cs=>cs.filter(c=>c.id!==id));};
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
-        <div className="sheet-handle"/>
-        <div className="sheet-header"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111"}}>Categories</h2><button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button></div></div>
-        <div className="sheet-body">
-          {cats.map(c=>(
-            <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid #f3f4f6"}}>
-              <div style={{width:12,height:12,borderRadius:"50%",background:c.color,flexShrink:0}}/>
-              <span style={{flex:1,fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif"}}>{c.label}</span>
-              {!DEFAULT_CATS.find(d=>d.id===c.id)&&<button onClick={()=>removeCat(c.id)} style={{background:"none",color:"#d1d5db",fontSize:18,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color="#dc2626"} onMouseLeave={e=>e.currentTarget.style.color="#d1d5db"}>✕</button>}
-            </div>
-          ))}
-          <div style={{marginTop:24}}>
-            <p style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:12}}>Add category</p>
-            <input ref={inputRef} value={newLabel} onChange={e=>setNewLabel(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCat()} placeholder="Category name" className="input-base" style={{marginBottom:12}}/>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-              {CAT_PALETTE.map(col=><div key={col} onClick={()=>setNewColor(col)} style={{width:26,height:26,borderRadius:"50%",background:col,cursor:"pointer",boxShadow:newColor===col?`0 0 0 2px #fff, 0 0 0 4px ${col}`:"none",transition:"box-shadow 0.12s"}}/>)}
-            </div>
-            <button onClick={addCat} disabled={!newLabel.trim()} style={{width:"100%",background:newLabel.trim()?"#1f2937":"#f3f4f6",borderRadius:10,padding:"12px",color:newLabel.trim()?"#fff":"#9ca3af",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Add category</button>
-          </div>
         </div>
       </div>
     </div>
@@ -685,62 +697,96 @@ function CatsSheet({cats,setCats,onClose}){
 }
 
 // ── Edit Sheet ────────────────────────────────────────────────────────────────
-function EditSheet({note,cats,onSave,onClose}){
+function EditSheet({note,onSave,onClose}){
   const [text,setText]=useState(note.text);
-  const [catId,setCatId]=useState(note.catId);
+  const [list,setList]=useState(note.list||"inbox");
+  const [context,setContext]=useState(note.context||"");
   const [dueDate,setDueDate]=useState(note.dueDate||"");
+  const [nextAction,setNextAction]=useState(note.nextAction||"");
   return(
     <div className="overlay" onClick={onClose}>
       <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
         <div className="sheet-handle"/>
-        <div className="sheet-header"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111"}}>Edit note</h2><button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button></div></div>
+        <div className="sheet-header"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Edit note</h2><button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button></div></div>
         <div className="sheet-body">
-          <textarea value={text} onChange={e=>setText(e.target.value)} className="input-base" rows={5} autoFocus style={{resize:"none",lineHeight:1.7,marginBottom:16}}/>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
-            {cats.map(c=><button key={c.id} onClick={()=>setCatId(c.id)} className="cat-chip" style={{background:catId===c.id?c.bg:"transparent",borderColor:catId===c.id?c.color:"#e5e7eb",color:catId===c.id?c.color:"#9ca3af"}}>{c.label}</button>)}
+          <textarea value={text} onChange={e=>setText(e.target.value)} className="input-base" rows={4} autoFocus style={{resize:"none",lineHeight:1.7,marginBottom:14}}/>
+          <p style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>GTD List</p>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:16}}>
+            {GTD_LISTS.filter(l=>l.id!=="done").map(l=>(
+              <button key={l.id} onClick={()=>setList(l.id)} style={{background:list===l.id?l.color+"18":"transparent",border:`1px solid ${list===l.id?l.color:"#e5e7eb"}`,borderRadius:6,padding:"5px 10px",fontSize:9,fontFamily:"'DM Mono',monospace",color:list===l.id?l.color:"#9ca3af",fontWeight:600,letterSpacing:"0.07em"}}>{l.icon} {l.label}</button>
+            ))}
           </div>
+          {list==="next"&&(
+            <>
+              <p style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Context</p>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
+                {GTD_CONTEXTS.map(c=><button key={c} onClick={()=>setContext(c===context?"":c)} style={{background:context===c?"#1f2937":"#f3f4f6",color:context===c?"#fff":"#6b7280",border:"none",borderRadius:6,padding:"5px 10px",fontSize:10,fontFamily:"'DM Mono',monospace"}}>{c}</button>)}
+              </div>
+              <input value={nextAction} onChange={e=>setNextAction(e.target.value)} placeholder="Next physical action…" className="input-base" style={{marginBottom:14,fontSize:13}}/>
+            </>
+          )}
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace",flexShrink:0}}>Follow-up:</span>
+            <span style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace",flexShrink:0}}>Due date:</span>
             <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{flex:1,border:"1px solid #e5e7eb",borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#1f2937"}}/>
             {dueDate&&<button onClick={()=>setDueDate("")} style={{background:"none",color:"#9ca3af",fontSize:14}}>✕</button>}
           </div>
         </div>
         <div className="sheet-footer" style={{display:"flex",gap:8}}>
           <button onClick={onClose} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>Cancel</button>
-          <button onClick={()=>onSave({...note,text:text.trim(),catId,dueDate:dueDate||null,updatedAt:new Date().toISOString()})} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save changes</button>
+          <button onClick={()=>onSave({...note,text:text.trim(),list,context:list==="next"?context:null,nextAction:list==="next"?nextAction:null,dueDate:dueDate||null,updatedAt:new Date().toISOString()})} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save</button>
         </div>
       </div>
     </div>
   );
 }
 
+// ── Quick Capture ─────────────────────────────────────────────────────────────
+function QuickCapture({onAdd}){
+  const [text,setText]=useState("");
+  const submit=()=>{
+    if(!text.trim())return;
+    onAdd({text:text.trim(),list:"inbox",context:null,dueDate:null,nextAction:null});
+    setText("");
+  };
+  return(
+    <div style={{background:"#fff",border:"1px solid #e8e6e3",borderRadius:12,boxShadow:"0 1px 6px rgba(0,0,0,0.04)",marginBottom:18,overflow:"hidden"}}>
+      <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))submit();}}
+        placeholder="Quick capture → Inbox  (Ctrl+Enter)" rows={2}
+        style={{width:"100%",background:"transparent",border:"none",padding:"13px 16px 8px",color:"#1f2937",fontFamily:"'Lora',serif",fontSize:15,lineHeight:1.7,resize:"none"}}
+      />
+      <div style={{padding:"0 12px 11px",borderTop:"1px solid #f3f4f6",paddingTop:8}}>
+        <button onClick={submit} disabled={!text.trim()} style={{width:"100%",background:text.trim()?"#1f2937":"#f3f4f6",borderRadius:9,padding:"10px",color:text.trim()?"#fff":"#9ca3af",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Add to Inbox</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Settings Sheet ────────────────────────────────────────────────────────────
-function SettingsSheet({apiKey,setApiKey,googleClientId,setGoogleClientId,driveConnected,onConnectDrive,onDisconnectDrive,onClose}){
-  const [ak,setAk]=useState(apiKey);
-  const [gcid,setGcid]=useState(googleClientId);
+function SettingsSheet({settings,setSettings,driveConnected,onConnectDrive,onDisconnectDrive,onClose}){
+  const [ak,setAk]=useState(settings.apiKey||"");
+  const [gcid,setGcid]=useState(settings.googleClientId||"");
   const [showKey,setShowKey]=useState(false);
-  const handleSave=()=>{
-    setApiKey(ak.trim()); setGoogleClientId(gcid.trim());
-    localStorage.setItem(SK_API_KEY,ak.trim()); localStorage.setItem(SK_G_CLIENT,gcid.trim());
-    onClose();
+  const save=()=>{
+    const s={...settings,apiKey:ak.trim(),googleClientId:gcid.trim()};
+    setSettings(s);lsave(SK_SETTINGS,s);onClose();
   };
   return(
     <div className="overlay" onClick={onClose}>
       <div className="sheet-panel sheet" style={{maxHeight:"96vh"}} onClick={e=>e.stopPropagation()}>
         <div className="sheet-handle"/>
-        <div className="sheet-header"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111"}}>Settings</h2><button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button></div></div>
+        <div className="sheet-header"><div style={{display:"flex",justifyContent:"space-between"}}><h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Settings</h2><button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button></div></div>
         <div className="sheet-body">
-          <div style={{marginBottom:28}}>
-            <p style={{fontSize:12,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Anthropic API key</p>
-            <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>Needed for brain dump and GTD review. Stored locally in your browser.</p>
+          <div style={{marginBottom:24}}>
+            <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Anthropic API key</p>
+            <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",lineHeight:1.7,marginBottom:10}}>Powers brain dump parsing and GTD review conversations. Stored locally.</p>
             <div style={{display:"flex",gap:8,marginBottom:6}}>
               <input type={showKey?"text":"password"} value={ak} onChange={e=>setAk(e.target.value)} placeholder="sk-ant-…" className="input-base" style={{flex:1,fontFamily:"'DM Mono',monospace",fontSize:13}}/>
               <button onClick={()=>setShowKey(v=>!v)} style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:9,padding:"0 14px",color:"#6b7280",fontSize:12}}>{showKey?"Hide":"Show"}</button>
             </div>
-            <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>Get yours at console.anthropic.com → API Keys</p>
+            <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>console.anthropic.com → API Keys</p>
           </div>
-          <div style={{marginBottom:28}}>
-            <p style={{fontSize:12,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Google Drive sync</p>
+          <div style={{marginBottom:24}}>
+            <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Google Drive sync</p>
             {driveConnected?(
               <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10}}>
                 <div className="sync-dot" style={{background:"#10b981"}}/>
@@ -749,103 +795,72 @@ function SettingsSheet({apiKey,setApiKey,googleClientId,setGoogleClientId,driveC
               </div>
             ):(
               <>
-                <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>Paste your Google OAuth Client ID to sync across devices.</p>
-                <input value={gcid} onChange={e=>setGcid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com" className="input-base" style={{fontFamily:"'DM Mono',monospace",fontSize:12,marginBottom:12}}/>
-                <button onClick={()=>{handleSave();setTimeout(()=>onConnectDrive(gcid.trim()),200);}} disabled={!gcid.trim()} style={{width:"100%",background:gcid.trim()?"#4285f4":"#f3f4f6",borderRadius:10,padding:"12px",color:gcid.trim()?"#fff":"#9ca3af",fontSize:12,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                <input value={gcid} onChange={e=>setGcid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com" className="input-base" style={{fontFamily:"'DM Mono',monospace",fontSize:12,marginBottom:10}}/>
+                <button onClick={()=>{save();setTimeout(()=>onConnectDrive(gcid.trim()),200);}} disabled={!gcid.trim()} style={{width:"100%",background:gcid.trim()?"#4285f4":"#f3f4f6",borderRadius:10,padding:"12px",color:gcid.trim()?"#fff":"#9ca3af",fontSize:12,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                   Connect Google Drive
                 </button>
-                <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"16px"}}>
-                  <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:10}}>Setup (5 min)</p>
-                  {["console.cloud.google.com → new project","APIs & Services → Enable → Google Drive API","OAuth consent screen → External → fill in name → Save","Credentials → Create → OAuth 2.0 Client ID → Web application","Authorised origins: add your app URL","Copy the Client ID and paste above"].map((s,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,marginBottom:7}}><span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#d97706",fontWeight:700,flexShrink:0}}>{i+1}.</span><span style={{fontSize:12,color:"#374151",fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>{s}</span></div>
+                <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"14px"}}>
+                  <p style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Setup</p>
+                  {["console.cloud.google.com → new project","APIs & Services → Enable → Google Drive API","OAuth consent screen → External → your name → Save","Credentials → OAuth 2.0 Client ID → Web application","Authorised origins: add your app URL","Add yourself as Test User in Audience tab","Copy Client ID and paste above"].map((s,i)=>(
+                    <div key={i} style={{display:"flex",gap:8,marginBottom:6}}><span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#d97706",fontWeight:700,flexShrink:0}}>{i+1}.</span><span style={{fontSize:12,color:"#374151",fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>{s}</span></div>
                   ))}
                 </div>
               </>
             )}
           </div>
-          <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"14px 16px"}}>
-            <p style={{fontSize:12,color:"#92400e",fontFamily:"'DM Mono',monospace",lineHeight:1.6,margin:0}}>⚠ API usage is billed to your Anthropic account. Brain dump and review calls typically cost a few pence each.</p>
+          <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"12px 14px"}}>
+            <p style={{fontSize:12,color:"#92400e",fontFamily:"'DM Mono',monospace",lineHeight:1.6,margin:0}}>⚠ API usage billed to your Anthropic account. Each brain dump or review call costs a few pence.</p>
           </div>
         </div>
-        <div className="sheet-footer"><button onClick={handleSave} style={{width:"100%",background:"#1f2937",borderRadius:10,padding:"13px",color:"#fff",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save settings</button></div>
-      </div>
-    </div>
-  );
-}
-
-// ── Quick Capture ─────────────────────────────────────────────────────────────
-function QuickCapture({cats,onAdd}){
-  const [text,setText]=useState("");
-  const [catId,setCatId]=useState(cats[0]?.id||"work");
-  const [dueDate,setDueDate]=useState("");
-  const [showDate,setShowDate]=useState(false);
-  const submit=()=>{
-    if(!text.trim())return;
-    onAdd({text:text.trim(),catId,dueDate:dueDate||null});
-    setText("");setDueDate("");setShowDate(false);
-  };
-  return(
-    <div style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,boxShadow:"0 1px 6px rgba(0,0,0,0.05)",marginBottom:20,overflow:"hidden"}}>
-      <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))submit();}} placeholder="Quick capture… (Ctrl+Enter to save)" rows={2}
-        style={{width:"100%",background:"transparent",border:"none",padding:"14px 16px 8px",color:"#1f2937",fontFamily:"'Lora',serif",fontSize:15,lineHeight:1.7,resize:"none"}}
-      />
-      <div style={{padding:"0 12px 8px",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-        {cats.map(c=><button key={c.id} onClick={()=>setCatId(c.id)} className="cat-chip" style={{background:catId===c.id?c.bg:"transparent",borderColor:catId===c.id?c.color:"#e5e7eb",color:catId===c.id?c.color:"#9ca3af"}}>{c.label}</button>)}
-        <button onClick={()=>setShowDate(v=>!v)} style={{background:dueDate?"#f0fdf4":"transparent",border:`1px solid ${dueDate?"#86efac":"#e5e7eb"}`,borderRadius:6,padding:"5px 10px",fontSize:10,fontFamily:"'DM Mono',monospace",color:dueDate?"#059669":"#9ca3af"}}>
-          {dueDate?`📅 ${fmtDate(dueDate)}`:"📅 date"}
-        </button>
-      </div>
-      {showDate&&(
-        <div style={{padding:"0 12px 10px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-          {[1,3,7].map(d=><button key={d} onClick={()=>{setDueDate(addDays(d));setShowDate(false);}} style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"7px 12px",fontSize:11,fontFamily:"'DM Mono',monospace",color:"#6b7280"}}>{d===1?"+1d":d===3?"+3d":"+1w"}</button>)}
-          <input type="date" value={dueDate} min={todayStr()} onChange={e=>{setDueDate(e.target.value);setShowDate(false);}} style={{flex:1,minWidth:110,border:"1px solid #e5e7eb",borderRadius:7,padding:"7px 10px",fontSize:12,fontFamily:"'DM Mono',monospace",color:"#1f2937"}}/>
-          {dueDate&&<button onClick={()=>setDueDate("")} style={{background:"none",color:"#9ca3af",fontSize:14}}>✕</button>}
-        </div>
-      )}
-      <div style={{padding:"0 12px 12px",borderTop:"1px solid #f3f4f6",paddingTop:10}}>
-        <button onClick={submit} disabled={!text.trim()} style={{width:"100%",background:text.trim()?"#1f2937":"#f3f4f6",borderRadius:9,padding:"11px",color:text.trim()?"#fff":"#9ca3af",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save  ⌘↵</button>
+        <div className="sheet-footer"><button onClick={save} style={{width:"100%",background:"#1f2937",borderRadius:10,padding:"13px",color:"#fff",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save settings</button></div>
       </div>
     </div>
   );
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
-const VIEWS=["Today","All","Work","Ideas","Personal","Done"];
-
 function App(){
-  const [notes,setNotesRaw]         = useState(()=>load(SK_NOTES,[]));
-  const [cats,setCatsRaw]           = useState(()=>load(SK_CATS,DEFAULT_CATS));
-  const [apiKey,setApiKey]          = useState(()=>localStorage.getItem(SK_API_KEY)||"");
-  const [googleClientId,setGoogleClientId] = useState(()=>localStorage.getItem(SK_G_CLIENT)||"");
-  const [view,setView]              = useState("Today");
-  const [sheet,setSheet]            = useState(null);
-  const [editNote,setEditNote]      = useState(null);
-  const [driveConnected,setDriveConnected] = useState(false);
-  const [syncStatus,setSyncStatus]  = useState("offline");
-  const [lastSync,setLastSync]      = useState(null);
-  const saveTimerRef = useRef(null);
+  const [notes,setNotesRaw]     = useState(()=>load(SK_NOTES,[]));
+  const [convos,setConvosRaw]   = useState(()=>load(SK_CONVOS,{}));
+  const [settings,setSettingsRaw]=useState(()=>load(SK_SETTINGS,{apiKey:"",googleClientId:""}));
+  const [activeList,setActiveList]=useState("inbox");
+  const [sheet,setSheet]        = useState(null);
+  const [editNote,setEditNote]  = useState(null);
+  const [reviewNote,setReviewNote]=useState(null);
+  const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [driveConnected,setDriveConnected]=useState(false);
+  const [syncStatus,setSyncStatus]=useState("offline");
+  const [lastSync,setLastSync]  = useState(null);
+  const saveTimerRef=useRef(null);
 
-  const queueDriveSave = useCallback((newNotes,newCats)=>{
+  const apiKey=settings.apiKey||"";
+
+  const setSettings=useCallback(s=>{setSettingsRaw(s);lsave(SK_SETTINGS,s);},[]);
+
+  const queueDriveSave=useCallback((newNotes,newConvos)=>{
     if(!driveConnected)return;
     if(saveTimerRef.current)clearTimeout(saveTimerRef.current);
     saveTimerRef.current=setTimeout(async()=>{
       setSyncStatus("syncing");
       try{
-        const n=newNotes??load(SK_NOTES,[]);
-        const c=newCats??load(SK_CATS,DEFAULT_CATS);
-        await saveToDrive({notes:n,cats:c,updatedAt:new Date().toISOString()});
+        await saveToDrive({
+          notes:newNotes??load(SK_NOTES,[]),
+          convos:newConvos??load(SK_CONVOS,{}),
+          settings:load(SK_SETTINGS,{}),
+          updatedAt:new Date().toISOString()
+        });
         setSyncStatus("idle");
         setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
       }catch(e){console.error(e);setSyncStatus("error");}
     },1500);
   },[driveConnected]);
 
-  const setNotes = useCallback(fn=>{
+  const setNotes=useCallback(fn=>{
     setNotesRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;lsave(SK_NOTES,next);queueDriveSave(next,null);return next;});
   },[queueDriveSave]);
 
-  const setCats = useCallback(fn=>{
-    setCatsRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;lsave(SK_CATS,next);queueDriveSave(null,next);return next;});
+  const setConvos=useCallback(fn=>{
+    setConvosRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;lsave(SK_CONVOS,next);queueDriveSave(null,next);return next;});
   },[queueDriveSave]);
 
   const initTokenClient=useCallback((clientId)=>{
@@ -857,135 +872,202 @@ function App(){
         gAccessToken=resp.access_token;setDriveConnected(true);setSyncStatus("syncing");
         try{
           const data=await loadFromDrive();
-          if(data){if(data.notes){setNotesRaw(data.notes);lsave(SK_NOTES,data.notes);}if(data.cats){setCatsRaw(data.cats);lsave(SK_CATS,data.cats);}}
-          else{await saveToDrive({notes:load(SK_NOTES,[]),cats:load(SK_CATS,DEFAULT_CATS),updatedAt:new Date().toISOString()});}
-          setSyncStatus("idle");setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+          if(data){
+            if(data.notes){setNotesRaw(data.notes);lsave(SK_NOTES,data.notes);}
+            if(data.convos){setConvosRaw(data.convos);lsave(SK_CONVOS,data.convos);}
+          }else{
+            await saveToDrive({notes:load(SK_NOTES,[]),convos:load(SK_CONVOS,{}),settings:load(SK_SETTINGS,{}),updatedAt:new Date().toISOString()});
+          }
+          setSyncStatus("idle");
+          setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
         }catch(e){console.error(e);setSyncStatus("error");}
       }
     });
   },[]);
 
   const connectDrive=useCallback((clientId)=>{
-    const cid=clientId||googleClientId;if(!cid){setSheet("settings");return;}
+    const cid=clientId||settings.googleClientId;if(!cid){setSheet("settings");return;}
     initTokenClient(cid);setTimeout(()=>{if(tokenClient)tokenClient.requestAccessToken();},600);
-  },[googleClientId,initTokenClient]);
+  },[settings.googleClientId,initTokenClient]);
 
   const disconnectDrive=()=>{gAccessToken=null;driveFileId=null;tokenClient=null;setDriveConnected(false);setSyncStatus("offline");};
 
-  const manualSync=async()=>{
-    if(!gAccessToken){connectDrive();return;}
-    setSyncStatus("syncing");
-    try{await saveToDrive({notes:load(SK_NOTES,[]),cats:load(SK_CATS,DEFAULT_CATS),updatedAt:new Date().toISOString()});setSyncStatus("idle");setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));}
-    catch{setSyncStatus("error");}
+  const addNote=({text,list,context,dueDate,nextAction})=>{
+    const n={id:uid(),text,list:list||"inbox",context:context||null,dueDate:dueDate||null,nextAction:nextAction||null,done:false,snoozedUntil:null,hasConvo:false,createdAt:new Date().toISOString(),updatedAt:null};
+    setNotes(ns=>[n,...ns]);
   };
-
-  const addNote  = ({text,catId,dueDate})=>{const n={id:uid(),text,catId,dueDate,done:false,snoozedUntil:null,createdAt:new Date().toISOString(),updatedAt:null};setNotes(ns=>[n,...ns]);};
-  const addMany  = items=>setNotes(ns=>[...items,...ns]);
-  const markDone = id=>setNotes(ns=>ns.map(n=>n.id===id?{...n,done:true,doneAt:new Date().toISOString()}:n));
-  const snooze   = (id,days)=>setNotes(ns=>ns.map(n=>n.id===id?{...n,snoozedUntil:addDays(days)}:n));
-  const saveEdit = upd=>{setNotes(ns=>ns.map(n=>n.id===upd.id?upd:n));setSheet(null);setEditNote(null);};
-  const deleteNote=id=>setNotes(ns=>ns.filter(n=>n.id!==id));
+  const addMany=items=>setNotes(ns=>[...items,...ns]);
+  const markDone=id=>setNotes(ns=>ns.map(n=>n.id===id?{...n,list:"done",done:true,doneAt:new Date().toISOString()}:n));
+  const snooze=(id,days)=>setNotes(ns=>ns.map(n=>n.id===id?{...n,snoozedUntil:addDays(days)}:n));
+  const saveEdit=upd=>{setNotes(ns=>ns.map(n=>n.id===upd.id?upd:n));setSheet(null);setEditNote(null);};
   const updateNote=upd=>setNotes(ns=>ns.map(n=>n.id===upd.id?upd:n));
-  const openEdit =note=>{setEditNote(note);setSheet("edit");};
+  const deleteNote=id=>setNotes(ns=>ns.filter(n=>n.id!==id));
+  const saveConvo=(noteId,msgs)=>setConvos(c=>({...c,[noteId]:msgs}));
 
-  const today         = todayStr();
-  const todayItems    = notes.filter(isTodayItem);
-  const upcomingItems = notes.filter(n=>isVisible(n)&&n.dueDate&&n.dueDate>today).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
-  const noDueItems    = notes.filter(n=>isVisible(n)&&!n.dueDate);
-  const doneItems     = notes.filter(n=>n.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""));
+  // Counts per list
+  const counts=useMemo(()=>{
+    const c={};
+    GTD_LISTS.forEach(l=>{ c[l.id]=notes.filter(n=>n.list===l.id&&(l.id==="done"||isActive(n))).length; });
+    return c;
+  },[notes]);
 
-  let mainNotes=null;
-  if(view==="All")      mainNotes=notes.filter(isVisible);
-  else if(view==="Work")     mainNotes=notes.filter(n=>isVisible(n)&&n.catId==="work");
-  else if(view==="Ideas")    mainNotes=notes.filter(n=>isVisible(n)&&n.catId==="idea");
-  else if(view==="Personal") mainNotes=notes.filter(n=>isVisible(n)&&n.catId==="personal");
-  else if(view==="Done")     mainNotes=doneItems;
+  // Notes for current list
+  const listNotes=useMemo(()=>{
+    return notes.filter(n=>{
+      if(n.list!==activeList)return false;
+      if(activeList==="done")return true;
+      return isActive(n);
+    }).sort((a,b)=>{
+      // Inbox: by created desc. Next: by context then date. Others: by date.
+      if(activeList==="inbox")return new Date(b.createdAt)-new Date(a.createdAt);
+      if(activeList==="next"){
+        if((a.context||"")!==b.context)return(a.context||"zzz").localeCompare(b.context||"zzz");
+        if(a.dueDate&&b.dueDate)return a.dueDate.localeCompare(b.dueDate);
+        if(a.dueDate)return -1; if(b.dueDate)return 1;
+        return 0;
+      }
+      if(a.dueDate&&b.dueDate)return a.dueDate.localeCompare(b.dueDate);
+      if(a.dueDate)return -1;if(b.dueDate)return 1;
+      return new Date(b.createdAt)-new Date(a.createdAt);
+    });
+  },[notes,activeList]);
 
-  const openCount    = notes.filter(isVisible).length;
-  const overdueCount = notes.filter(n=>isVisible(n)&&n.dueDate&&n.dueDate<today).length;
-  const dayName      = new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
-  const shared       = {cats,onDone:markDone,onSnooze:snooze,onEdit:openEdit,onDelete:deleteNote};
+  // Inbox items for sequential review
+  const inboxNotes=notes.filter(n=>n.list==="inbox"&&isActive(n));
+  const reviewNoteIdx=reviewNote?inboxNotes.findIndex(n=>n.id===reviewNote.id):-1;
+  const nextInboxNote=reviewNoteIdx>=0&&reviewNoteIdx<inboxNotes.length-1?inboxNotes[reviewNoteIdx+1]:null;
+
+  const activeLM=getListMeta(activeList);
+  const shared={onDone:markDone,onSnooze:snooze,onEdit:n=>{setEditNote(n);setSheet("edit");},onDelete:deleteNote,onReview:n=>{setReviewNote(n);setSheet("review");},showList:false};
+
+  // Group Next Actions by context
+  const nextByContext=useMemo(()=>{
+    if(activeList!=="next")return null;
+    const groups={};
+    listNotes.forEach(n=>{const ctx=n.context||"No context";if(!groups[ctx])groups[ctx]=[];groups[ctx].push(n);});
+    return groups;
+  },[listNotes,activeList]);
+
+  const syncDotColor={idle:"#10b981",syncing:"#d97706",error:"#dc2626",offline:"#4b5563"}[syncStatus]||"#4b5563";
 
   return(
-    <div style={{minHeight:"100vh",background:"#f7f6f3"}}>
-      <div style={{maxWidth:640,margin:"0 auto",padding:"24px 16px 120px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-          <div>
-            <h1 style={{margin:"0 0 2px",fontSize:22,fontFamily:"'Lora',serif",fontWeight:400,color:"#111",letterSpacing:"-0.02em"}}>{view==="Today"?dayName:view}</h1>
-            <p style={{margin:0,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#9ca3af"}}>{openCount} open{overdueCount>0?` · ${overdueCount} overdue`:""}</p>
+    <div className="app-shell">
+      {/* Mobile overlay for sidebar */}
+      {sidebarOpen&&<div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
+
+      {/* Sidebar */}
+      <div className={`sidebar ${sidebarOpen?"mobile-open":""}`}>
+        <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:16,fontFamily:"'Lora',serif",fontWeight:500,color:"#1f2937",letterSpacing:"-0.01em"}}>GTD</div>
+            <div style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#9ca3af",letterSpacing:"0.1em",textTransform:"uppercase"}}>Getting Things Done</div>
           </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setSheet("cats")} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 12px",fontSize:15,color:"#6b7280"}} title="Categories">⊕</button>
-            <button onClick={()=>setSheet("settings")} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 12px",fontSize:15,color:(!apiKey&&!driveConnected)?"#dc2626":"#6b7280"}} title="Settings">⚙</button>
-          </div>
+          <div className="sync-dot" style={{background:syncDotColor}}/>
         </div>
 
-        <SyncBar status={syncStatus} lastSync={lastSync} onSync={manualSync} connected={driveConnected}/>
-
-        {!apiKey&&(
-          <div onClick={()=>setSheet("settings")} style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,padding:"12px 16px",marginBottom:12,cursor:"pointer",display:"flex",alignItems:"center",gap:10}} className="fade">
-            <span style={{fontSize:15}}>⚠</span>
-            <div><p style={{margin:0,fontSize:12,color:"#dc2626",fontFamily:"'DM Mono',monospace",fontWeight:600}}>Anthropic API key needed for brain dump & review</p><p style={{margin:0,fontSize:12,color:"#9ca3af",fontFamily:"'Lora',serif"}}>Tap to add in Settings</p></div>
-          </div>
-        )}
-        {!driveConnected&&(
-          <div onClick={()=>connectDrive()} style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 16px",marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",gap:10}} className="fade">
-            <span style={{fontSize:15}}>☁</span>
-            <div><p style={{margin:0,fontSize:12,color:"#0369a1",fontFamily:"'DM Mono',monospace",fontWeight:600}}>Connect Google Drive for cross-device sync</p><p style={{margin:0,fontSize:12,color:"#9ca3af",fontFamily:"'Lora',serif"}}>{googleClientId?"Tap to connect":"Tap Settings ⚙ to set up"}</p></div>
-          </div>
-        )}
-
-        <div className="tab-bar" style={{marginBottom:20}}>
-          {VIEWS.map(v=>{
-            const active=view===v;const badge=v==="Today"?todayItems.length:null;
-            return(
-              <button key={v} className="tab" onClick={()=>setView(v)} style={{background:active?"#1f2937":"#fff",border:"1px solid #e5e7eb",color:active?"#fff":"#6b7280",fontFamily:"'DM Mono',monospace"}}>
-                {v}{badge>0&&<span style={{background:active?"rgba(255,255,255,0.25)":"#fef2f2",color:active?"#fff":"#dc2626",borderRadius:8,padding:"0 6px",fontSize:9,fontWeight:700}}>{badge}</span>}
-              </button>
-            );
-          })}
+        <div style={{flex:1,overflowY:"auto",paddingBottom:16}}>
+          <div className="nav-section">Lists</div>
+          {GTD_LISTS.map(l=>(
+            <button key={l.id} className={`nav-item ${activeList===l.id?"active":""}`}
+              onClick={()=>{setActiveList(l.id);setSidebarOpen(false);}}
+              style={{color:activeList===l.id?"#fff":undefined}}
+            >
+              <span>{l.icon}</span>
+              <span style={{flex:1}}>{l.label}</span>
+              {counts[l.id]>0&&<span className={`badge ${l.id==="inbox"&&counts[l.id]>0?"urgent":""}`}>{counts[l.id]}</span>}
+            </button>
+          ))}
         </div>
 
-        <QuickCapture cats={cats} onAdd={addNote}/>
-
-        {view==="Today"&&(
-          <div>
-            {todayItems.length===0&&upcomingItems.length===0&&noDueItems.length===0&&(
-              <div style={{textAlign:"center",padding:"56px 20px"}}>
-                <div style={{fontSize:32,marginBottom:12}}>✦</div>
-                <p style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:15,color:"#9ca3af",margin:0}}>Nothing due. Use Brain Dump to capture what's on your mind.</p>
-              </div>
-            )}
-            {todayItems.length>0&&<div style={{marginBottom:24}}><SectionHead label="Needs attention" count={todayItems.length} color="#dc2626"/>{todayItems.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}</div>}
-            {upcomingItems.length>0&&<div style={{marginBottom:24}}><SectionHead label="Coming up" count={upcomingItems.length} color="#d97706"/>{upcomingItems.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}</div>}
-            {noDueItems.length>0&&(
-              <div style={{marginBottom:24}}>
-                <SectionHead label="No date set" count={noDueItems.length} color="#6b7280"/>
-                <p style={{fontSize:12,color:"#9ca3af",fontFamily:"'Lora',serif",fontStyle:"italic",marginTop:-6,marginBottom:10,lineHeight:1.6}}>These won't surface until you give them a date — or run a Review.</p>
-                {noDueItems.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}
-              </div>
-            )}
-          </div>
-        )}
-
-        {view!=="Today"&&mainNotes&&(
-          <div>
-            {mainNotes.length===0&&<div style={{textAlign:"center",padding:"48px 20px"}}><p style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:14,color:"#9ca3af",margin:0}}>Nothing here.</p></div>}
-            {mainNotes.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}
-          </div>
-        )}
+        <div style={{padding:"8px 8px 24px",borderTop:"1px solid #e8e6e3"}}>
+          <button className="nav-item" onClick={()=>{setSheet("settings");setSidebarOpen(false);}}>
+            <span>⚙</span><span>Settings</span>
+            {!apiKey&&<span className="badge urgent">!</span>}
+          </button>
+        </div>
       </div>
 
+      {/* Main */}
+      <div className="main-area">
+        {/* Mobile top bar */}
+        <div className="topbar">
+          <button onClick={()=>setSidebarOpen(true)} style={{background:"none",color:"#6b7280",fontSize:20,padding:"2px 6px"}}>☰</button>
+          <span style={{flex:1,fontFamily:"'Lora',serif",fontSize:16,fontWeight:400,color:"#1f2937"}}>{activeLM.icon} {activeLM.label}</span>
+          {counts.inbox>0&&<span style={{background:"#dc2626",color:"#fff",borderRadius:10,padding:"2px 8px",fontSize:10,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{counts.inbox}</span>}
+        </div>
+
+        <div style={{maxWidth:660,margin:"0 auto",padding:"28px 18px 110px"}}>
+
+          {/* Header — desktop */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}} className="topbar-hidden">
+            <div>
+              <h1 style={{margin:"0 0 2px",fontSize:24,fontFamily:"'Lora',serif",fontWeight:400,color:"#111",letterSpacing:"-0.02em"}}>{activeLM.icon} {activeLM.label}</h1>
+              <p style={{margin:0,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#9ca3af"}}>{activeLM.desc}</p>
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <div className="sync-dot" style={{background:syncDotColor}}/>
+              <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#9ca3af"}}>{syncStatus==="idle"&&lastSync?lastSync:syncStatus}</span>
+            </div>
+          </div>
+
+          {!apiKey&&(
+            <div onClick={()=>setSheet("settings")} style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,padding:"11px 14px",marginBottom:14,cursor:"pointer",display:"flex",alignItems:"center",gap:10}} className="fade">
+              <span>⚠</span>
+              <p style={{margin:0,fontSize:12,color:"#dc2626",fontFamily:"'DM Mono',monospace"}}>Add Anthropic API key to enable brain dump & review</p>
+            </div>
+          )}
+
+          {/* Inbox: quick capture + process button */}
+          {activeList==="inbox"&&(
+            <>
+              <QuickCapture onAdd={addNote}/>
+              {inboxNotes.length>0&&(
+                <button onClick={()=>{setReviewNote(inboxNotes[0]);setSheet("review");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:10,padding:"11px",color:"#fff",fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                  ◎ Process Inbox ({inboxNotes.length} item{inboxNotes.length!==1?"s":""})
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Empty state */}
+          {listNotes.length===0&&(
+            <div style={{textAlign:"center",padding:"56px 20px"}}>
+              <div style={{fontSize:36,marginBottom:12}}>{activeLM.icon}</div>
+              <p style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:15,color:"#9ca3af",margin:0}}>
+                {activeList==="inbox"?"Start by capturing what's on your mind above, or use Brain Dump.":`No items in ${activeLM.label}.`}
+              </p>
+            </div>
+          )}
+
+          {/* Next Actions — grouped by context */}
+          {activeList==="next"&&nextByContext&&Object.entries(nextByContext).map(([ctx,items])=>(
+            <div key={ctx} style={{marginBottom:20}}>
+              <SectionHead label={ctx} count={items.length} color="#2563eb"/>
+              {items.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}
+            </div>
+          ))}
+
+          {/* All other lists — flat */}
+          {activeList!=="next"&&listNotes.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}
+        </div>
+      </div>
+
+      {/* FABs */}
       <div className="fab-row">
         <button className="fab fab-amber" onClick={()=>setSheet("dump")}>✦ Brain dump</button>
-        <button className="fab fab-primary" onClick={()=>setSheet("review")} disabled={openCount===0} style={{opacity:openCount>0?1:0.4}}>◎ Review</button>
+        {activeList!=="inbox"&&<button className="fab fab-dark" onClick={()=>{if(inboxNotes.length>0){setReviewNote(inboxNotes[0]);setSheet("review");}else setActiveList("inbox");}}>◎ Process</button>}
       </div>
 
-      {sheet==="dump"    &&<BrainDumpSheet cats={cats} apiKey={apiKey} onSaveAll={addMany} onClose={()=>setSheet(null)}/>}
-      {sheet==="review"  &&<ReviewSheet notes={notes} cats={cats} apiKey={apiKey} onUpdateNote={updateNote} onClose={()=>setSheet(null)}/>}
-      {sheet==="cats"    &&<CatsSheet cats={cats} setCats={setCats} onClose={()=>setSheet(null)}/>}
-      {sheet==="settings"&&<SettingsSheet apiKey={apiKey} setApiKey={setApiKey} googleClientId={googleClientId} setGoogleClientId={setGoogleClientId} driveConnected={driveConnected} onConnectDrive={connectDrive} onDisconnectDrive={disconnectDrive} onClose={()=>setSheet(null)}/>}
-      {sheet==="edit"&&editNote&&<EditSheet note={editNote} cats={cats} onSave={saveEdit} onClose={()=>{setSheet(null);setEditNote(null);}}/>}
+      {/* Sheets */}
+      {sheet==="dump"     &&<BrainDumpSheet apiKey={apiKey} onSaveAll={addMany} onClose={()=>setSheet(null)}/>}
+      {sheet==="review"&&reviewNote&&<ReviewSheet
+        note={reviewNote} apiKey={apiKey} convos={convos}
+        onSaveConvo={saveConvo} onUpdateNote={upd=>{updateNote(upd);}}
+        onClose={()=>{setSheet(null);setReviewNote(null);}}
+        onNextInbox={nextInboxNote?()=>setReviewNote(nextInboxNote):null}
+      />}
+      {sheet==="edit"&&editNote&&<EditSheet note={editNote} onSave={saveEdit} onClose={()=>{setSheet(null);setEditNote(null);}}/>}
+      {sheet==="settings"&&<SettingsSheet settings={settings} setSettings={setSettings} driveConnected={driveConnected} onConnectDrive={connectDrive} onDisconnectDrive={disconnectDrive} onClose={()=>setSheet(null)}/>}
     </div>
   );
 }
