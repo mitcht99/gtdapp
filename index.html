@@ -433,48 +433,76 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
   };
 
   // Detect quick reply options from last assistant message
+  const [customContexts,setCustomContexts]=useState([]);
+  const allContexts=[...GTD_CONTEXTS,...customContexts];
+
   const getQuickReplies=useCallback((content)=>{
     if(!content||decided)return[];
     const t=content.toLowerCase();
-    // Yes/No questions
-    if(/\?/.test(t)&&(t.includes(" yes")||t.includes("is this")||t.includes("are you")||t.includes("do you")||t.includes("can you")||t.includes("would you")||t.includes("have you")||t.includes("actionable")||t.includes("does it")||t.includes("did you"))) {
-      return["Yes","No"];
+
+    // Extract any @mentions Claude actually listed in its message — highest priority
+    const mentionedContexts=[...content.matchAll(/@[\w]+/g)].map(m=>m[0]).filter(m=>m.length>1);
+    if(mentionedContexts.length>0){
+      return[...new Set(mentionedContexts),"Something else"];
     }
-    // Project vs single action
-    if(t.includes("project")&&(t.includes("single")||t.includes("one action")||t.includes("multiple")||t.includes("more than one"))) {
-      return["Single action","Project - multiple steps"];
+
+    // Context question without @mentions
+    if(t.includes("context")||t.includes("where will you")||t.includes("where would you")||t.includes("where are you")){
+      return[...allContexts.slice(0,5),"Something else"];
     }
+
+    // Project vs single action — before yes/no so "is this a project" doesn't get swallowed
+    if(t.includes("project")&&(t.includes("single")||t.includes("one action")||t.includes("multiple")||t.includes("more than one")||t.includes("series"))){
+      return["Single action","Project — multiple steps","Not sure yet"];
+    }
+
     // 2-minute rule
-    if(t.includes("2 minute")||t.includes("two minute")||t.includes("2-minute")) {
+    if(t.includes("2 minute")||t.includes("two minute")||t.includes("2-minute")){
       return["Yes, doing it now","No, takes longer"];
     }
+
     // Delegate
-    if(t.includes("delegate")||t.includes("someone else")||t.includes("assign")) {
+    if(t.includes("delegate")||t.includes("someone else")||t.includes("assign to")){
       return["I'll do it","Delegate it","Not sure yet"];
     }
-    // Context
-    if(t.includes("context")||t.includes("where will you")||t.includes("@work")||t.includes("@home")) {
-      return GTD_CONTEXTS.slice(0,5);
+
+    // Due date / deadline
+    if(t.includes("due date")||t.includes("deadline")||t.includes("time-sensitive")||t.includes("specific date")||t.includes("when does")||(t.includes("date")&&t.includes("?"))){
+      return["Yes, has a deadline","No — whenever","Urgent this week"];
     }
-    // Due date
-    if(t.includes("due date")||t.includes("deadline")||t.includes("when does")||t.includes("time-sensitive")||t.includes("specific date")) {
-      return["Yes, has a deadline","No, whenever","Urgent - this week"];
-    }
+
     // Trash vs keep
-    if(t.includes("trash")||t.includes("delete")||t.includes("get rid")||t.includes("let it go")||t.includes("let go")) {
-      return["Yes, trash it","Keep it - someday","Keep it - reference"];
+    if(t.includes("trash")||t.includes("delete")||t.includes("get rid")||t.includes("let it go")){
+      return["Yes, trash it","Someday/Maybe","Keep as reference"];
     }
+
     // Reference vs someday
-    if((t.includes("reference")||t.includes("information"))&&(t.includes("someday")||t.includes("maybe")||t.includes("act on"))) {
-      return["Reference - keep the info","Someday/Maybe","Trash it"];
+    if((t.includes("reference")||t.includes("information"))&&(t.includes("someday")||t.includes("maybe"))){
+      return["Reference — keep the info","Someday/Maybe","Trash it"];
     }
+
+    // Actionable / yes-no — last resort only
+    if(/\?/.test(t)&&(t.includes("actionable")||t.includes("is this")||t.includes("are you")||t.includes("do you")||t.includes("can you")||t.includes("have you")||t.includes("did you"))){
+      return["Yes","No"];
+    }
+
     return[];
-  },[decided]);
+  },[decided,allContexts]);
 
   const lastAssistantMsg=messages.filter(m=>m.role==="assistant"&&!m.isDecision).slice(-1)[0];
   const quickReplies=lastAssistantMsg&&!thinking?getQuickReplies(lastAssistantMsg.content):[];
 
-  const sendQuick=async(reply)=>{
+  const handleQuickReply=async(reply)=>{
+    // If user picked "Something else", focus the input with a hint
+    if(reply==="Something else"){
+      setInput("@");
+      setTimeout(()=>inputRef.current?.focus(),50);
+      return;
+    }
+    // If the reply looks like a new @context not already known, save it
+    if(reply.startsWith("@")&&!allContexts.includes(reply)){
+      setCustomContexts(c=>[...c,reply]);
+    }
     setInput("");
     const userMsg={role:"user",content:reply,ts:Date.now()};
     const next=[...messages,userMsg];
@@ -489,6 +517,15 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
       setMessages(withErr);onSaveConvo(note.id,withErr);
     }
     setThinking(false);
+  };
+
+  // When user types a freeform @context and sends it, save it too
+  const sendWithContextSave=async()=>{
+    const trimmed=input.trim();
+    if(trimmed.startsWith("@")&&!allContexts.includes(trimmed)){
+      setCustomContexts(c=>[...c,trimmed]);
+    }
+    await send();
   };
 
   return(
@@ -531,9 +568,9 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
         {quickReplies.length>0&&!decided&&(
           <div style={{padding:"0 14px 8px",flexShrink:0,display:"flex",gap:6,flexWrap:"wrap"}}>
             {quickReplies.map(r=>(
-              <button key={r} onClick={()=>sendQuick(r)} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:20,padding:"6px 14px",fontSize:11,fontFamily:"'DM Mono',monospace",color:"#374151",letterSpacing:"0.04em",transition:"all 0.12s",cursor:"pointer"}}
+              <button key={r} onClick={()=>handleQuickReply(r)} style={{background:r==="Something else"?"#f9fafb":"#fff",border:`1px solid ${r==="Something else"?"#e5e7eb":"#d1d5db"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontFamily:"'DM Mono',monospace",color:r==="Something else"?"#9ca3af":"#374151",letterSpacing:"0.04em",transition:"all 0.12s",cursor:"pointer"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#1f2937";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#1f2937";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.color="#374151";e.currentTarget.style.borderColor="#e5e7eb";}}
+                onMouseLeave={e=>{e.currentTarget.style.background=r==="Something else"?"#f9fafb":"#fff";e.currentTarget.style.color=r==="Something else"?"#9ca3af":"#374151";e.currentTarget.style.borderColor=r==="Something else"?"#e5e7eb":"#d1d5db";}}
               >{r}</button>
             ))}
           </div>
@@ -543,10 +580,10 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
         {!decided&&(
           <div style={{padding:"8px 14px 0",borderTop:"1px solid #f3f4f6",flexShrink:0}}>
             <div style={{display:"flex",gap:8}}>
-              <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Reply to Claude…" disabled={thinking}
+              <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendWithContextSave()} placeholder="Reply… (or type a new @context)" disabled={thinking}
                 style={{flex:1,border:"1px solid #e5e7eb",borderRadius:10,padding:"11px 14px",fontSize:15,fontFamily:"'Lora',serif",color:"#1f2937"}}
               />
-              <button onClick={send} disabled={!input.trim()||thinking} style={{background:input.trim()&&!thinking?"#1f2937":"#f3f4f6",borderRadius:10,padding:"11px 18px",color:input.trim()&&!thinking?"#fff":"#9ca3af",fontSize:14}}>↑</button>
+              <button onClick={sendWithContextSave} disabled={!input.trim()||thinking} style={{background:input.trim()&&!thinking?"#1f2937":"#f3f4f6",borderRadius:10,padding:"11px 18px",color:input.trim()&&!thinking?"#fff":"#9ca3af",fontSize:14}}>↑</button>
             </div>
           </div>
         )}
