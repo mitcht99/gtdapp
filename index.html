@@ -324,7 +324,7 @@ function SnoozeBtn({onSnooze}){
 }
 
 // ── GTD Review Sheet — per-note persistent conversations ──────────────────────
-function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNextInbox}){
+function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNextInbox,inboxPosition}){
   const savedMsgs=convos[note.id]||[];
   const [messages,setMessages]=useState(savedMsgs);
   const [input,setInput]=useState("");
@@ -425,6 +425,10 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
     onSaveConvo(note.id,finalMsgs);
     onUpdateNote(upd);
     setDecided(true);
+    // Auto-advance to next inbox item after 1.5 seconds
+    if(onNextInbox){
+      setTimeout(()=>onNextInbox(),1500);
+    }
   };
 
   const formatTs=ts=>{
@@ -536,6 +540,7 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.1em"}}>GTD Review</span>
+              {inboxPosition&&inboxPosition.total>0&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#6b7280",background:"#f3f4f6",borderRadius:4,padding:"1px 6px"}}>{inboxPosition.current} of {inboxPosition.total}</span>}
               {savedMsgs.length>0&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"1px 6px"}}>resumed</span>}
             </div>
             <button onClick={onClose} style={{background:"none",color:"#ccc",fontSize:20,padding:"2px 6px"}}>✕</button>
@@ -632,9 +637,15 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
         )}
 
         {decided&&(
-          <div className="sheet-footer" style={{display:"flex",gap:8}}>
-            {onNextInbox&&<button onClick={onNextInbox} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Next inbox item →</button>}
-            <button onClick={onClose} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>Done</button>
+          <div className="sheet-footer">
+            <div style={{textAlign:"center",marginBottom:10}}>
+              <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:"#10b981"}}>✓ Filed</span>
+              {onNextInbox&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:"#9ca3af"}}> · moving to next item…</span>}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              {onNextInbox&&<button onClick={onNextInbox} style={{flex:2,background:"#1f2937",border:"none",borderRadius:10,padding:"13px",color:"#fff",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Next item →</button>}
+              <button onClick={onClose} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"13px",color:"#6b7280",fontSize:11}}>Done</button>
+            </div>
           </div>
         )}
       </div>
@@ -1042,8 +1053,22 @@ function App(){
 
   // Inbox items for sequential review
   const inboxNotes=notes.filter(n=>n.list==="inbox"&&isActive(n));
-  const reviewNoteIdx=reviewNote?inboxNotes.findIndex(n=>n.id===reviewNote.id):-1;
-  const nextInboxNote=reviewNoteIdx>=0&&reviewNoteIdx<inboxNotes.length-1?inboxNotes[reviewNoteIdx+1]:null;
+  // Use a ref to capture the inbox snapshot at the point review started
+  const inboxSnapshotRef=useRef([]);
+  useEffect(()=>{
+    if(sheet==="review"&&reviewNote){
+      // Capture snapshot when review opens or note changes
+      inboxSnapshotRef.current=notes.filter(n=>n.list==="inbox"&&isActive(n));
+    }
+  },[reviewNote?.id]);
+  const snapshotIdx=reviewNote?inboxSnapshotRef.current.findIndex(n=>n.id===reviewNote.id):-1;
+  const reviewNoteIdx=snapshotIdx>=0?snapshotIdx:(reviewNote?inboxNotes.findIndex(n=>n.id===reviewNote.id):-1);
+  // Next note: look up from live list by ID stored in snapshot
+  const nextInboxNoteFromSnapshot=snapshotIdx>=0&&snapshotIdx<inboxSnapshotRef.current.length-1
+    ?notes.find(n=>n.id===inboxSnapshotRef.current[snapshotIdx+1]?.id&&isActive(n))||inboxNotes[0]
+    :inboxNotes.find(n=>n.id!==reviewNote?.id)||null;
+  const nextInboxNote=nextInboxNoteFromSnapshot&&nextInboxNoteFromSnapshot.id!==reviewNote?.id?nextInboxNoteFromSnapshot:null;
+  const totalInbox=Math.max(inboxNotes.length,inboxSnapshotRef.current.length);
 
   const activeLM=getListMeta(activeList);
   const shared={onDone:markDone,onSnooze:snooze,onEdit:n=>{setEditNote(n);setSheet("edit");},onDelete:deleteNote,onReview:n=>{setReviewNote(n);setSheet("review");},showList:false};
@@ -1169,10 +1194,12 @@ function App(){
       {/* Sheets */}
       {sheet==="dump"     &&<BrainDumpSheet apiKey={apiKey} onSaveAll={addMany} onClose={()=>setSheet(null)}/>}
       {sheet==="review"&&reviewNote&&<ReviewSheet
+        key={reviewNote.id}
         note={reviewNote} apiKey={apiKey} convos={convos}
         onSaveConvo={saveConvo} onUpdateNote={upd=>{updateNote(upd);}}
         onClose={()=>{setSheet(null);setReviewNote(null);}}
         onNextInbox={nextInboxNote?()=>setReviewNote(nextInboxNote):null}
+        inboxPosition={{current:reviewNoteIdx+1,total:totalInbox}}
       />}
       {sheet==="edit"&&editNote&&<EditSheet note={editNote} onSave={saveEdit} onClose={()=>{setSheet(null);setEditNote(null);}}/>}
       {sheet==="settings"&&<SettingsSheet settings={settings} setSettings={setSettings} driveConnected={driveConnected} onConnectDrive={connectDrive} onDisconnectDrive={disconnectDrive} onClose={()=>setSheet(null)}/>}
