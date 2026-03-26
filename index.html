@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<title>Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #f7f6f3; font-family: 'Lora', serif; }
+  body { -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+  textarea, input { font-family: inherit; }
+  textarea:focus, input:focus { outline: none; }
+  textarea::placeholder, input::placeholder { color: #c4c4c4; }
+  button { font-family: 'DM Mono', monospace; cursor: pointer; border: none; -webkit-tap-highlight-color: transparent; }
+  input[type=date]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+
+  @keyframes slideUp  { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes pulse    { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+  @keyframes pop      { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes spinSlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .sheet   { animation: slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1); }
+  .fade    { animation: fadeIn 0.2s ease; }
+  .pop     { animation: pop 0.2s ease; }
+
+  .fab-row { position: fixed; bottom: 28px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; padding: 0 20px; z-index: 50; pointer-events: none; }
+  .fab-row button { pointer-events: all; }
+  .fab { height: 52px; border-radius: 26px; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: transform 0.12s, box-shadow 0.12s; display: flex; align-items: center; gap: 8px; padding: 0 22px; }
+  .fab:active { transform: scale(0.96); box-shadow: 0 2px 10px rgba(0,0,0,0.12); }
+  .fab-primary { background: #1f2937; color: #fff; }
+  .fab-amber   { background: #d97706; color: #fff; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.28); z-index: 100; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.18s ease; }
+  .sheet-panel  { background: #fff; border-radius: 20px 20px 0 0; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
+  .sheet-handle { width: 36px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 14px auto 0; flex-shrink: 0; }
+  .sheet-header { padding: 16px 20px 14px; border-bottom: 1px solid #f3f4f6; flex-shrink: 0; }
+  .sheet-body   { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+  .sheet-footer { padding: 12px 20px 32px; border-top: 1px solid #f3f4f6; flex-shrink: 0; }
+
+  .note-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.15s; }
+  .note-card:hover { box-shadow: 0 3px 16px rgba(0,0,0,0.08); }
+  .note-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px 12px; background: #fafafa; border-top: 1px solid #f3f4f6; }
+  .action-btn { border-radius: 7px; padding: 8px 13px; font-size: 11px; letter-spacing: 0.05em; font-weight: 600; transition: opacity 0.12s; }
+  .action-btn:active { opacity: 0.7; }
+
+  .input-base { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; font-size: 15px; color: #1f2937; background: #fafafa; transition: border-color 0.15s; }
+  .input-base:focus { border-color: #9ca3af; background: #fff; }
+
+  .pill     { font-size: 9px; font-family: 'DM Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; border-radius: 4px; padding: 2px 8px; flex-shrink: 0; }
+  .cat-chip { border-radius: 6px; padding: 6px 12px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; font-family: 'DM Mono', monospace; transition: all 0.12s; border: 1.5px solid transparent; }
+
+  .tab-bar { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab { border-radius: 8px; padding: 7px 14px; font-size: 11px; letter-spacing: 0.05em; transition: all 0.12s; flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+
+  .bubble-ai   { background: #f3f4f6; color: #1f2937; border-radius: 4px 14px 14px 14px; align-self: flex-start; max-width: 88%; }
+  .bubble-user { background: #1f2937; color: #fff; border-radius: 14px 4px 14px 14px; align-self: flex-end; max-width: 88%; }
+  .bubble { padding: 10px 14px; font-size: 14px; line-height: 1.6; font-family: 'Lora', serif; }
+
+  .dec-btn { border-radius: 9px; padding: 10px 12px; font-size: 11px; letter-spacing: 0.05em; border: 1.5px solid #e5e7eb; background: #fff; color: #374151; transition: all 0.12s; flex: 1; text-align: center; min-width: 0; }
+  .dec-btn:active { transform: scale(0.96); }
+
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SK_NOTES    = "gtd_notes_v3";
+const SK_CATS     = "gtd_cats_v3";
+const SK_API_KEY  = "gtd_api_key";
+const SK_G_CLIENT = "gtd_google_client_id";
+const DRIVE_FILE  = "gtd-notes-app.json";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+const DEFAULT_CATS = [
+  { id:"work",     label:"Work",     color:"#2563eb", bg:"#eff6ff" },
+  { id:"idea",     label:"Idea",     color:"#d97706", bg:"#fffbeb" },
+  { id:"personal", label:"Personal", color:"#059669", bg:"#ecfdf5" },
+];
+const CAT_PALETTE = ["#2563eb","#d97706","#059669","#dc2626","#7c3aed","#db2777","#0891b2","#65a30d","#9a3412","#374151"];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const uid      = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
+const todayStr = () => new Date().toISOString().slice(0,10);
+const addDays  = n  => { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+const fmtDate  = iso => iso ? new Date(iso+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}) : "";
+
+const dueLabel = iso => {
+  if (!iso) return null;
+  const diff = Math.round((new Date(iso)-new Date(todayStr()))/86400000);
+  if (diff<0)  return {text:`${Math.abs(diff)}d overdue`,urgent:true};
+  if (diff===0) return {text:"Due today",urgent:true};
+  if (diff===1) return {text:"Due tomorrow",urgent:false};
+  return {text:`Due ${fmtDate(iso)}`,urgent:false};
+};
+const isVisible   = n => !n.done && (!n.snoozedUntil||n.snoozedUntil<=todayStr());
+const isTodayItem = n => isVisible(n) && !!n.dueDate && n.dueDate<=todayStr();
+
+const load = (k,fb) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):fb; } catch { return fb; } };
+const lsave = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
+
+// ── Claude API ────────────────────────────────────────────────────────────────
+async function callClaude(apiKey, messages, system) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body: JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system,messages})
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content?.find(b=>b.type==="text")?.text||"";
+}
+
+async function parseDump(apiKey, text, cats) {
+  const catList = cats.map(c=>`"${c.id}"`).join("|");
+  const catDesc = cats.map(c=>`${c.id}=${c.label}`).join(", ");
+  const raw = await callClaude(apiKey,
+    [{role:"user",content:text}],
+    `Extract individual notes/tasks from a brain dump. Today is ${todayStr()}.
+Return ONLY a JSON array, no markdown. Each item: {"text":string,"catId":${catList},"dueDate":"YYYY-MM-DD"|null}
+Categories: ${catDesc}. Pick the best catId. dueDate only if urgency clearly implied. Split compound items.`
+  );
+  return JSON.parse(raw.replace(/```json|```/g,"").trim());
+}
+
+// ── Google Drive sync ─────────────────────────────────────────────────────────
+let tokenClient = null;
+let gAccessToken = null;
+let driveFileId = null;
+
+async function driveRequest(method, url, body, token) {
+  const headers = { Authorization:`Bearer ${token||gAccessToken}` };
+  if (body && !(body instanceof FormData)) headers["Content-Type"] = "application/json";
+  const res = await fetch(url, { method, headers, body: body?(body instanceof FormData?body:JSON.stringify(body)):undefined });
+  if (!res.ok) { const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||`HTTP ${res.status}`); }
+  return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
+}
+
+async function findDriveFile() {
+  const q = encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
+  const data = await driveRequest("GET",`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name,modifiedTime)`);
+  return data.files?.[0]?.id || null;
+}
+
+async function loadFromDrive() {
+  const id = await findDriveFile();
+  if (!id) return null;
+  driveFileId = id;
+  const text = await driveRequest("GET",`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+  return JSON.parse(typeof text==="string"?text:JSON.stringify(text));
+}
+
+async function saveToDrive(data) {
+  const content = JSON.stringify(data);
+  const meta = { name: DRIVE_FILE, mimeType:"application/json" };
+
+  if (driveFileId) {
+    // Update existing
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(meta)],{type:"application/json"}));
+    form.append("file", new Blob([content],{type:"application/json"}));
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`, {
+      method:"PATCH", headers:{Authorization:`Bearer ${gAccessToken}`}, body:form
+    });
+    if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+  } else {
+    // Create new
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(meta)],{type:"application/json"}));
+    form.append("file", new Blob([content],{type:"application/json"}));
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      method:"POST", headers:{Authorization:`Bearer ${gAccessToken}`}, body:form
+    });
+    if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+    const created = await res.json();
+    driveFileId = created.id;
+  }
+}
+
+// ── Pill ──────────────────────────────────────────────────────────────────────
+function Pill({ cat }) {
+  return <span className="pill" style={{color:cat.color,background:cat.bg}}>{cat.label}</span>;
+}
+
+// ── Sync status bar ───────────────────────────────────────────────────────────
+function SyncBar({ status, lastSync, onSync, connected }) {
+  const configs = {
+    idle:    { dot:"#10b981", text:"Synced",         spin:false },
+    syncing: { dot:"#d97706", text:"Syncing…",       spin:true  },
+    error:   { dot:"#dc2626", text:"Sync failed",    spin:false },
+    offline: { dot:"#9ca3af", text:"Drive not connected", spin:false },
+  };
+  const c = configs[status]||configs.idle;
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,marginBottom:16,cursor:connected?"pointer":"default"}} onClick={connected?onSync:undefined}>
+      <div className="sync-dot" style={{background:c.dot,animation:c.spin?"spinSlow 1s linear infinite":undefined}}/>
+      <span style={{flex:1,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#6b7280",letterSpacing:"0.05em"}}>{c.text}{lastSync&&status==="idle"?` · ${lastSync}`:""}</span>
+      {connected && <span style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>↻ sync now</span>}
+    </div>
+  );
+}
+
+// ── Note Card ─────────────────────────────────────────────────────────────────
+function NoteCard({ note, cats, onDone, onSnooze, onEdit, onDelete }) {
+  const cat = cats.find(c=>c.id===note.catId)||cats[0]||{color:"#6b7280",bg:"#f3f4f6",label:"Note"};
+  const dl  = dueLabel(note.dueDate);
+  const [open, setOpen] = useState(false);
+  const snoozeDays = [1,3,7,14];
+
+  return (
+    <div className="note-card" style={{borderLeft:`3px solid ${cat.color}`}}>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"13px 14px 11px"}}>
+        <button onClick={()=>onDone(note.id)} style={{flexShrink:0,marginTop:3,width:22,height:22,borderRadius:"50%",border:`2px solid ${cat.color}`,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.12s"}}
+          onMouseEnter={e=>e.currentTarget.style.background=cat.color+"22"}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        />
+        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
+            <Pill cat={cat}/>
+            {dl && <span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:dl.urgent?"#dc2626":"#9ca3af",fontWeight:dl.urgent?700:400,letterSpacing:"0.08em"}}>{dl.text}</span>}
+            {note.updatedAt && <span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#c4b5a0",fontStyle:"italic"}}>edited</span>}
+          </div>
+          <p style={{margin:0,fontSize:14,lineHeight:1.65,color:"#1f2937",fontFamily:"'Lora',serif",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{note.text}</p>
+        </div>
+        <button onClick={()=>setOpen(o=>!o)} style={{background:"none",color:"#d1d5db",fontSize:14,padding:"2px 4px",lineHeight:1,flexShrink:0}}>{open?"▲":"▾"}</button>
+      </div>
+      {open && (
+        <div className="note-actions">
+          <button className="action-btn" style={{background:"#eff6ff",color:"#2563eb"}} onClick={()=>{onEdit(note);setOpen(false);}}>✎ Edit</button>
+          <SnoozeBtn onSnooze={d=>{onSnooze(note.id,d);setOpen(false);}}/>
+          <button className="action-btn" style={{background:"#fef2f2",color:"#dc2626"}} onClick={()=>onDelete(note.id)}>✕ Delete</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnoozeBtn({ onSnooze }) {
+  const [open, setOpen] = useState(false);
+  const opts = [{label:"Tomorrow",days:1},{label:"3 days",days:3},{label:"1 week",days:7},{label:"2 weeks",days:14}];
+  return (
+    <div style={{position:"relative"}}>
+      <button className="action-btn" style={{background:"#f9fafb",color:"#6b7280",border:"1px solid #e5e7eb"}} onClick={()=>setOpen(o=>!o)}>⏸ Snooze</button>
+      {open && (
+        <div style={{position:"absolute",bottom:38,left:0,background:"#fff",border:"1px solid #e5e7eb",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:200,minWidth:140,overflow:"hidden"}} className="pop">
+          {opts.map(o=>(
+            <button key={o.days} onClick={()=>{onSnooze(o.days);setOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"11px 16px",background:"none",border:"none",borderBottom:"1px solid #f3f4f6",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#374151",cursor:"pointer"}}
+              onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
+              onMouseLeave={e=>e.currentTarget.style.background="none"}
+            >{o.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionHead({ label, count, color }) {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:700,color:color||"#6b7280",whiteSpace:"nowrap"}}>{label}</span>
+      {count>0 && <span style={{background:(color||"#6b7280")+"18",color:color||"#6b7280",fontSize:9,fontFamily:"'DM Mono',monospace",fontWeight:700,borderRadius:10,padding:"1px 7px"}}>{count}</span>}
+      <div style={{flex:1,height:1,background:"#f0ede9"}}/>
+    </div>
+  );
+}
+
+// ── Quick Capture ─────────────────────────────────────────────────────────────
+function QuickCapture({ cats, onAdd }) {
+  const [text, setText]       = useState("");
+  const [catId, setCatId]     = useState(cats[0]?.id||"work");
+  const [dueDate, setDueDate] = useState("");
+  const [showDate, setShowDate] = useState(false);
+
+  const submit = () => {
+    if (!text.trim()) return;
+    onAdd({text:text.trim(),catId,dueDate:dueDate||null});
+    setText(""); setDueDate(""); setShowDate(false);
+  };
+
+  return (
+    <div style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,boxShadow:"0 1px 6px rgba(0,0,0,0.05)",marginBottom:20,overflow:"hidden"}}>
+      <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))submit();}}
+        placeholder="Quick capture… (Ctrl+Enter to save)" rows={2}
+        style={{width:"100%",background:"transparent",border:"none",padding:"14px 16px 8px",color:"#1f2937",fontFamily:"'Lora',serif",fontSize:15,lineHeight:1.7,resize:"none"}}
+      />
+      <div style={{padding:"0 12px 8px",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+        {cats.map(c=>(
+          <button key={c.id} onClick={()=>setCatId(c.id)} className="cat-chip" style={{background:catId===c.id?c.bg:"transparent",borderColor:catId===c.id?c.color:"#e5e7eb",color:catId===c.id?c.color:"#9ca3af"}}>{c.label}</button>
+        ))}
+        <button onClick={()=>setShowDate(v=>!v)} style={{background:dueDate?"#f0fdf4":"transparent",border:`1px solid ${dueDate?"#86efac":"#e5e7eb"}`,borderRadius:6,padding:"5px 10px",fontSize:10,fontFamily:"'DM Mono',monospace",color:dueDate?"#059669":"#9ca3af"}}>
+          {dueDate?`📅 ${fmtDate(dueDate)}`:"📅 date"}
+        </button>
+      </div>
+      {showDate && (
+        <div style={{padding:"0 12px 10px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          {[1,3,7].map(d=>(
+            <button key={d} onClick={()=>{setDueDate(addDays(d));setShowDate(false);}} style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"7px 12px",fontSize:11,fontFamily:"'DM Mono',monospace",color:"#6b7280"}}>
+              {d===1?"+1d":d===3?"+3d":"+1w"}
+            </button>
+          ))}
+          <input type="date" value={dueDate} min={todayStr()} onChange={e=>{setDueDate(e.target.value);setShowDate(false);}} style={{flex:1,minWidth:110,border:"1px solid #e5e7eb",borderRadius:7,padding:"7px 10px",fontSize:12,fontFamily:"'DM Mono',monospace",color:"#1f2937"}}/>
+          {dueDate && <button onClick={()=>setDueDate("")} style={{background:"none",color:"#9ca3af",fontSize:14}}>✕</button>}
+        </div>
+      )}
+      <div style={{padding:"0 12px 12px",borderTop:"1px solid #f3f4f6",paddingTop:10}}>
+        <button onClick={submit} disabled={!text.trim()} style={{width:"100%",background:text.trim()?"#1f2937":"#f3f4f6",borderRadius:9,padding:"11px",color:text.trim()?"#fff":"#9ca3af",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save  ⌘↵</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Brain Dump Sheet ──────────────────────────────────────────────────────────
+function BrainDumpSheet({ cats, apiKey, onSaveAll, onClose }) {
+  const [text, setText]     = useState("");
+  const [status, setStatus] = useState("idle");
+  const [parsed, setParsed] = useState([]);
+  const [error, setError]   = useState("");
+  const taRef = useRef(null);
+  useEffect(()=>{ setTimeout(()=>taRef.current?.focus(),100); },[]);
+
+  const handleParse = async () => {
+    if (!text.trim()) return;
+    if (!apiKey) { setError("Add your Anthropic API key in Settings first."); return; }
+    setStatus("parsing"); setError("");
+    try {
+      const items = await parseDump(apiKey, text, cats);
+      setParsed(items.map(i=>({...i,id:uid(),_keep:true})));
+      setStatus("review");
+    } catch(e) { setError(e.message||"Couldn't parse — try again."); setStatus("idle"); }
+  };
+
+  const toggleKeep = id => setParsed(p=>p.map(i=>i.id===id?{...i,_keep:!i._keep}:i));
+  const updateCat  = (id,catId) => setParsed(p=>p.map(i=>i.id===id?{...i,catId}:i));
+  const updateDate = (id,dd) => setParsed(p=>p.map(i=>i.id===id?{...i,dueDate:dd||null}:i));
+  const removeItem = id => setParsed(p=>p.filter(i=>i.id!==id));
+
+  const handleSave = () => {
+    onSaveAll(parsed.filter(i=>i._keep).map(({_keep,...r})=>({...r,done:false,snoozedUntil:null,createdAt:new Date().toISOString(),updatedAt:null})));
+    onClose();
+  };
+
+  return (
+    <div className="overlay" onClick={status==="idle"?onClose:undefined}>
+      <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle"/>
+        <div className="sheet-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111",marginBottom:2}}>Brain dump</h2>
+              <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>{status==="idle"?"Just write — I'll sort it out":status==="parsing"?"Sorting through it…":`${parsed.length} items found`}</p>
+            </div>
+            <button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button>
+          </div>
+        </div>
+        <div className="sheet-body">
+          {status==="idle" && (
+            <>
+              <textarea ref={taRef} value={text} onChange={e=>setText(e.target.value)} className="input-base"
+                placeholder={"Write everything on your mind…\n\nCall accountant about year end. Idea for report automation. Pick up dry cleaning today. Reply to Sarah asap."}
+                rows={8} style={{resize:"none",lineHeight:1.75,marginBottom:14}}
+              />
+              {error && <p style={{color:"#dc2626",fontSize:12,fontFamily:"'DM Mono',monospace",marginBottom:12}}>{error}</p>}
+              <button onClick={handleParse} disabled={!text.trim()} style={{width:"100%",background:text.trim()?"#1f2937":"#f3f4f6",color:text.trim()?"#fff":"#9ca3af",borderRadius:10,padding:"13px",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Sort it out →</button>
+            </>
+          )}
+          {status==="parsing" && (
+            <div style={{textAlign:"center",padding:"56px 0"}}>
+              <div style={{fontSize:34,animation:"spin 1.5s linear infinite",display:"inline-block",marginBottom:14}}>✦</div>
+              <p style={{fontFamily:"'Lora',serif",fontStyle:"italic",color:"#9ca3af",fontSize:15}}>Reading through it…</p>
+            </div>
+          )}
+          {status==="review" && (
+            <>
+              <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",marginBottom:16,lineHeight:1.6}}>Tap to include/exclude, tweak categories or dates, then save.</p>
+              {parsed.map(item=>{
+                const cat = cats.find(c=>c.id===item.catId)||cats[0]||{color:"#6b7280",bg:"#f3f4f6"};
+                return (
+                  <div key={item.id} style={{background:item._keep?"#fff":"#f9fafb",border:`1px solid ${item._keep?"#e5e7eb":"#f3f4f6"}`,borderLeft:`3px solid ${item._keep?cat.color:"#e5e7eb"}`,borderRadius:9,padding:"12px 14px",marginBottom:8,opacity:item._keep?1:0.45,transition:"all 0.15s"}}>
+                    <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                      <button onClick={()=>toggleKeep(item.id)} style={{flexShrink:0,marginTop:3,width:20,height:20,borderRadius:"50%",border:`2px solid ${item._keep?cat.color:"#d1d5db"}`,background:item._keep?cat.color:"transparent",fontSize:10,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.12s"}}>{item._keep?"✓":""}</button>
+                      <div style={{flex:1}}>
+                        <p style={{margin:"0 0 8px",fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif",lineHeight:1.5}}>{item.text}</p>
+                        <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+                          {cats.map(c=><button key={c.id} onClick={()=>updateCat(item.id,c.id)} className="cat-chip" style={{background:item.catId===c.id?c.bg:"transparent",borderColor:item.catId===c.id?c.color:"#e5e7eb",color:item.catId===c.id?c.color:"#9ca3af"}}>{c.label}</button>)}
+                          <input type="date" value={item.dueDate||""} onChange={e=>updateDate(item.id,e.target.value)} style={{border:"1px solid #e5e7eb",borderRadius:6,padding:"3px 8px",fontSize:11,fontFamily:"'DM Mono',monospace",color:item.dueDate?"#1f2937":"#9ca3af",background:item.dueDate?"#f0fdf4":"#fafafa"}}/>
+                        </div>
+                      </div>
+                      <button onClick={()=>removeItem(item.id)} style={{background:"none",color:"#d1d5db",fontSize:18,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+        {status==="review" && (
+          <div className="sheet-footer" style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setStatus("idle");setParsed([]);}} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>← Redo</button>
+            <button onClick={handleSave} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save {parsed.filter(i=>i._keep).length} items →</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── GTD Review Sheet ──────────────────────────────────────────────────────────
+const GTD_SYSTEM = `You are a GTD coach helping someone process their inbox one item at a time.
+Be concise and conversational. Ask ONE focused question at a time.
+Guide: Is it actionable? What's the next physical action? Do/Defer/Delegate/Drop/Someday?
+After 2-3 exchanges nudge toward a decision. When they decide, acknowledge briefly and stop.`;
+
+function ReviewSheet({ notes, cats, apiKey, onUpdateNote, onClose }) {
+  const queue   = notes.filter(isVisible);
+  const [idx, setIdx]               = useState(0);
+  const [messages, setMessages]     = useState([]);
+  const [input, setInput]           = useState("");
+  const [thinking, setThinking]     = useState(false);
+  const [decided, setDecided]       = useState(false);
+  const [summary, setSummary]       = useState([]);
+  const [done, setDone]             = useState(false);
+  const [showDefer, setShowDefer]   = useState(false);
+  const [showAction, setShowAction] = useState(false);
+  const [actionText, setActionText] = useState("");
+  const [deferDate, setDeferDate]   = useState("");
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+  const current   = queue[idx];
+
+  useEffect(()=>{
+    if (!current) return;
+    setMessages([]); setDecided(false); setInput(""); setShowDefer(false); setShowAction(false); setActionText(""); setDeferDate("");
+    const cat = cats.find(c=>c.id===current.catId)||{label:"Note"};
+    const dl  = dueLabel(current.dueDate);
+    openItem(`"${current.text}" [${cat.label}]${dl?` — ${dl.text}`:" — no date"}`);
+  },[idx]);
+
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages,thinking]);
+
+  const openItem = async ctx => {
+    if (!apiKey) { setMessages([{role:"assistant",content:"Add your Anthropic API key in Settings to enable the review conversation."}]); return; }
+    setThinking(true);
+    try {
+      const r = await callClaude(apiKey,[{role:"user",content:`Process this item: ${ctx}`}],GTD_SYSTEM);
+      setMessages([{role:"assistant",content:r}]);
+    } catch { setMessages([{role:"assistant",content:"What's the situation with this one — clear next action, or something blocking it?"}]); }
+    setThinking(false);
+  };
+
+  const send = async () => {
+    if (!input.trim()||thinking) return;
+    const msg  = {role:"user",content:input.trim()};
+    const next = [...messages,msg];
+    setMessages(next); setInput(""); setThinking(true);
+    try {
+      const r = await callClaude(apiKey,next,GTD_SYSTEM);
+      setMessages(m=>[...m,{role:"assistant",content:r}]);
+    } catch { setMessages(m=>[...m,{role:"assistant",content:"Got it. What do you want to do with this?"}]); }
+    setThinking(false);
+  };
+
+  const decide = (decision, opts={}) => {
+    let upd = {...current};
+    let entry = {text:current.text};
+    if (decision==="done")    { upd.done=true; upd.doneAt=new Date().toISOString(); entry.label="✓ Done"; entry.color="#059669"; }
+    else if (decision==="drop")    { upd.done=true; upd.doneAt=new Date().toISOString(); upd.dropped=true; entry.label="✕ Dropped"; entry.color="#9ca3af"; }
+    else if (decision==="defer")   { upd.dueDate=opts.date||addDays(7); upd.snoozedUntil=null; entry.label=`→ Deferred to ${fmtDate(upd.dueDate)}`; entry.color="#d97706"; }
+    else if (decision==="action")  { upd.text=opts.text||current.text; upd.dueDate=opts.date||addDays(1); upd.updatedAt=new Date().toISOString(); entry.label="⚡ Next action set"; entry.color="#2563eb"; entry.detail=upd.text; }
+    else if (decision==="someday") { upd.snoozedUntil=addDays(30); upd.dueDate=null; entry.label="☁ Someday/Maybe"; entry.color="#7c3aed"; }
+    onUpdateNote(upd);
+    setSummary(s=>[...s,entry]);
+    setDecided(true);
+    setTimeout(()=>{ if (idx+1<queue.length) setIdx(i=>i+1); else setDone(true); },700);
+  };
+
+  const skip = () => {
+    setSummary(s=>[...s,{text:current.text,label:"— Skipped",color:"#d1d5db"}]);
+    if (idx+1<queue.length) setIdx(i=>i+1); else setDone(true);
+  };
+
+  if (done) return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle"/>
+        <div style={{padding:"24px 24px 0",textAlign:"center"}}>
+          <div style={{fontSize:36,marginBottom:10}}>✦</div>
+          <h2 style={{fontFamily:"'Lora',serif",fontWeight:400,fontSize:22,marginBottom:4}}>Review complete</h2>
+          <p style={{fontSize:12,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>{summary.length} items processed</p>
+        </div>
+        <div className="sheet-body">
+          {summary.map((s,i)=>(
+            <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderBottom:"1px solid #f3f4f6"}}>
+              <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:s.color,fontWeight:600,flexShrink:0,minWidth:120}}>{s.label}</span>
+              <div>
+                <p style={{fontSize:13,color:"#374151",fontFamily:"'Lora',serif",margin:0}}>{s.text}</p>
+                {s.detail && <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace",margin:"2px 0 0"}}>→ {s.detail}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="sheet-footer">
+          <button onClick={onClose} style={{width:"100%",background:"#1f2937",borderRadius:10,padding:"13px",color:"#fff",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Back to notes</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!current) return null;
+  const cat = cats.find(c=>c.id===current.catId)||{color:"#6b7280",bg:"#f3f4f6",label:"Note"};
+  const dl  = dueLabel(current.dueDate);
+
+  return (
+    <div className="overlay">
+      <div className="sheet-panel sheet" style={{maxHeight:"95vh"}}>
+        <div className="sheet-handle"/>
+        <div className="sheet-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.1em"}}>Review · {idx+1} of {queue.length}</span>
+            <button onClick={onClose} style={{background:"none",color:"#ccc",fontSize:20,padding:"2px 6px"}}>✕</button>
+          </div>
+          <div style={{height:3,background:"#f3f4f6",borderRadius:2,marginBottom:12}}>
+            <div style={{height:"100%",background:"#1f2937",borderRadius:2,width:`${(idx/queue.length)*100}%`,transition:"width 0.3s"}}/>
+          </div>
+          <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderLeft:`3px solid ${cat.color}`,borderRadius:9,padding:"11px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
+              <span className="pill" style={{color:cat.color,background:cat.bg}}>{cat.label}</span>
+              {dl && <span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:dl.urgent?"#dc2626":"#9ca3af",fontWeight:dl.urgent?700:400}}>{dl.text}</span>}
+            </div>
+            <p style={{margin:0,fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif",lineHeight:1.6}}>{current.text}</p>
+          </div>
+        </div>
+
+        <div style={{flex:1,overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:10,minHeight:80,WebkitOverflowScrolling:"touch"}}>
+          {messages.map((m,i)=>(
+            <div key={i} className={`bubble ${m.role==="assistant"?"bubble-ai":"bubble-user"}`}>{m.content}</div>
+          ))}
+          {thinking && <div className="bubble bubble-ai"><span style={{fontSize:20,animation:"pulse 1s infinite",display:"inline-block"}}>…</span></div>}
+          <div ref={bottomRef}/>
+        </div>
+
+        {!decided && (
+          <div style={{padding:"8px 14px 0",borderTop:"1px solid #f3f4f6",flexShrink:0}}>
+            <div style={{display:"flex",gap:8}}>
+              <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Reply…" disabled={thinking}
+                style={{flex:1,border:"1px solid #e5e7eb",borderRadius:10,padding:"11px 14px",fontSize:15,fontFamily:"'Lora',serif",color:"#1f2937",background:thinking?"#fafafa":"#fff"}}
+              />
+              <button onClick={send} disabled={!input.trim()||thinking} style={{background:input.trim()&&!thinking?"#1f2937":"#f3f4f6",borderRadius:10,padding:"11px 18px",color:input.trim()&&!thinking?"#fff":"#9ca3af",fontSize:14}}>↑</button>
+            </div>
+          </div>
+        )}
+
+        {!decided && (
+          <div style={{padding:"12px 14px 28px",flexShrink:0}}>
+            <p style={{margin:"0 0 8px",fontSize:9,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af"}}>Decide</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+              <button className="dec-btn" style={{background:"#f0fdf4",color:"#059669",borderColor:"#86efac"}} onClick={()=>decide("done")}>✓ Done</button>
+              <button className="dec-btn" style={{background:showAction?"#eff6ff":"#fff",color:"#2563eb",borderColor:showAction?"#93c5fd":"#e5e7eb"}} onClick={()=>{setShowAction(v=>!v);setShowDefer(false);}}>⚡ Action</button>
+              <button className="dec-btn" style={{background:showDefer?"#fffbeb":"#fff",color:"#d97706",borderColor:showDefer?"#fcd34d":"#e5e7eb"}} onClick={()=>{setShowDefer(v=>!v);setShowAction(false);}}>→ Defer</button>
+              <button className="dec-btn" style={{color:"#7c3aed"}} onClick={()=>decide("someday")}>☁ Someday</button>
+              <button className="dec-btn" style={{color:"#9ca3af"}} onClick={()=>decide("drop")}>✕ Drop</button>
+              <button className="dec-btn" style={{color:"#d1d5db",borderColor:"#f3f4f6"}} onClick={skip}>Skip</button>
+            </div>
+            {showAction && (
+              <div style={{display:"flex",gap:8,animation:"pop 0.15s ease"}}>
+                <input value={actionText} onChange={e=>setActionText(e.target.value)} placeholder="Next physical action…"
+                  style={{flex:1,border:"1px solid #bfdbfe",borderRadius:9,padding:"10px 13px",fontSize:14,fontFamily:"'Lora',serif",color:"#1f2937"}}
+                />
+                <button onClick={()=>decide("action",{text:actionText||current.text,date:addDays(1)})} style={{background:"#2563eb",borderRadius:9,padding:"10px 16px",color:"#fff",fontSize:12}}>Set</button>
+              </div>
+            )}
+            {showDefer && (
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",animation:"pop 0.15s ease"}}>
+                {[3,7,14].map(d=>(
+                  <button key={d} onClick={()=>decide("defer",{date:addDays(d)})} style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"9px 14px",color:"#d97706",fontSize:11,fontFamily:"'DM Mono',monospace"}}>+{d===3?"3d":d===7?"1w":"2w"}</button>
+                ))}
+                <input type="date" value={deferDate} min={addDays(1)} onChange={e=>setDeferDate(e.target.value)} style={{border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 10px",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#1f2937",flex:1}}/>
+                {deferDate && <button onClick={()=>decide("defer",{date:deferDate})} style={{background:"#d97706",borderRadius:8,padding:"9px 14px",color:"#fff",fontSize:12}}>→</button>}
+              </div>
+            )}
+          </div>
+        )}
+        {decided && <div style={{padding:"16px",textAlign:"center",color:"#9ca3af",fontFamily:"'DM Mono',monospace",fontSize:11,flexShrink:0}}>Moving on…</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── Categories Sheet ──────────────────────────────────────────────────────────
+function CatsSheet({ cats, setCats, onClose }) {
+  const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState(CAT_PALETTE[3]);
+  const inputRef = useRef(null);
+  useEffect(()=>{ setTimeout(()=>inputRef.current?.focus(),100); },[]);
+
+  const addCat = () => {
+    if (!newLabel.trim()) return;
+    setCats(cs=>[...cs,{id:uid(),label:newLabel.trim(),color:newColor,bg:newColor+"18"}]);
+    setNewLabel("");
+  };
+  const removeCat = id => { if (DEFAULT_CATS.find(d=>d.id===id)) return; setCats(cs=>cs.filter(c=>c.id!==id)); };
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle"/>
+        <div className="sheet-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111"}}>Categories</h2>
+            <button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button>
+          </div>
+        </div>
+        <div className="sheet-body">
+          {cats.map(c=>(
+            <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid #f3f4f6"}}>
+              <div style={{width:12,height:12,borderRadius:"50%",background:c.color,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif"}}>{c.label}</span>
+              {!DEFAULT_CATS.find(d=>d.id===c.id) && (
+                <button onClick={()=>removeCat(c.id)} style={{background:"none",color:"#d1d5db",fontSize:18,lineHeight:1}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#dc2626"}
+                  onMouseLeave={e=>e.currentTarget.style.color="#d1d5db"}
+                >✕</button>
+              )}
+            </div>
+          ))}
+          <div style={{marginTop:24}}>
+            <p style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:12}}>Add category</p>
+            <input ref={inputRef} value={newLabel} onChange={e=>setNewLabel(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCat()} placeholder="Category name" className="input-base" style={{marginBottom:12}}/>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+              {CAT_PALETTE.map(col=>(
+                <div key={col} onClick={()=>setNewColor(col)} style={{width:26,height:26,borderRadius:"50%",background:col,cursor:"pointer",boxShadow:newColor===col?`0 0 0 2px #fff, 0 0 0 4px ${col}`:"none",transition:"box-shadow 0.12s"}}/>
+              ))}
+            </div>
+            <button onClick={addCat} disabled={!newLabel.trim()} style={{width:"100%",background:newLabel.trim()?"#1f2937":"#f3f4f6",borderRadius:10,padding:"12px",color:newLabel.trim()?"#fff":"#9ca3af",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Add category</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Sheet ────────────────────────────────────────────────────────────────
+function EditSheet({ note, cats, onSave, onClose }) {
+  const [text, setText]       = useState(note.text);
+  const [catId, setCatId]     = useState(note.catId);
+  const [dueDate, setDueDate] = useState(note.dueDate||"");
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet-panel sheet" onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle"/>
+        <div className="sheet-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111"}}>Edit note</h2>
+            <button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button>
+          </div>
+        </div>
+        <div className="sheet-body">
+          <textarea value={text} onChange={e=>setText(e.target.value)} className="input-base" rows={5} autoFocus style={{resize:"none",lineHeight:1.7,marginBottom:16}}/>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+            {cats.map(c=><button key={c.id} onClick={()=>setCatId(c.id)} className="cat-chip" style={{background:catId===c.id?c.bg:"transparent",borderColor:catId===c.id?c.color:"#e5e7eb",color:catId===c.id?c.color:"#9ca3af"}}>{c.label}</button>)}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace",flexShrink:0}}>Follow-up:</span>
+            <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{flex:1,border:"1px solid #e5e7eb",borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"'DM Mono',monospace",color:"#1f2937"}}/>
+            {dueDate && <button onClick={()=>setDueDate("")} style={{background:"none",color:"#9ca3af",fontSize:14}}>✕</button>}
+          </div>
+        </div>
+        <div className="sheet-footer" style={{display:"flex",gap:8}}>
+          <button onClick={onClose} style={{flex:1,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px",color:"#6b7280",fontSize:11}}>Cancel</button>
+          <button onClick={()=>onSave({...note,text:text.trim(),catId,dueDate:dueDate||null,updatedAt:new Date().toISOString()})} style={{flex:2,background:"#1f2937",borderRadius:10,padding:"12px",color:"#fff",fontSize:11,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save changes</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Settings Sheet ────────────────────────────────────────────────────────────
+function SettingsSheet({ apiKey, setApiKey, googleClientId, setGoogleClientId, driveConnected, onConnectDrive, onDisconnectDrive, onClose }) {
+  const [ak, setAk]   = useState(apiKey);
+  const [gcid, setGcid] = useState(googleClientId);
+  const [showKey, setShowKey] = useState(false);
+
+  const handleSave = () => {
+    setApiKey(ak.trim());
+    setGoogleClientId(gcid.trim());
+    localStorage.setItem(SK_API_KEY, ak.trim());
+    localStorage.setItem(SK_G_CLIENT, gcid.trim());
+    onClose();
+  };
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet-panel sheet" style={{maxHeight:"96vh"}} onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle"/>
+        <div className="sheet-header">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <h2 style={{fontSize:17,fontFamily:"'Lora',serif",fontWeight:500,color:"#111"}}>Settings</h2>
+            <button onClick={onClose} style={{background:"none",fontSize:22,color:"#aaa",padding:"4px 8px"}}>✕</button>
+          </div>
+        </div>
+        <div className="sheet-body">
+
+          {/* Anthropic key */}
+          <div style={{marginBottom:28}}>
+            <p style={{fontSize:12,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Anthropic API key</p>
+            <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>Needed for brain dump parsing and GTD review. Stored locally in your browser.</p>
+            <div style={{display:"flex",gap:8,marginBottom:6}}>
+              <input type={showKey?"text":"password"} value={ak} onChange={e=>setAk(e.target.value)} placeholder="sk-ant-…" className="input-base" style={{flex:1,fontFamily:"'DM Mono',monospace",fontSize:13}}/>
+              <button onClick={()=>setShowKey(v=>!v)} style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:9,padding:"0 14px",color:"#6b7280",fontSize:12}}>{showKey?"Hide":"Show"}</button>
+            </div>
+            <p style={{fontSize:11,color:"#9ca3af",fontFamily:"'DM Mono',monospace"}}>Get yours at console.anthropic.com → API Keys</p>
+          </div>
+
+          {/* Google Drive */}
+          <div style={{marginBottom:28}}>
+            <p style={{fontSize:12,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:8}}>Google Drive sync</p>
+            <p style={{fontSize:13,color:"#6b7280",fontFamily:"'Lora',serif",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>
+              Syncs your notes to a file called <strong>gtd-notes-app.json</strong> in your Drive, so any device can access them.
+            </p>
+
+            {driveConnected ? (
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,marginBottom:12}}>
+                <div className="sync-dot" style={{background:"#10b981"}}/>
+                <span style={{flex:1,fontSize:13,color:"#065f46",fontFamily:"'DM Mono',monospace"}}>Connected to Google Drive</span>
+                <button onClick={onDisconnectDrive} style={{background:"none",border:"1px solid #6ee7b7",borderRadius:7,padding:"5px 10px",color:"#059669",fontSize:11,fontFamily:"'DM Mono',monospace"}}>Disconnect</button>
+              </div>
+            ) : (
+              <>
+                <p style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:"#6b7280",marginBottom:8}}>Paste your Google OAuth Client ID below, then connect.</p>
+                <input value={gcid} onChange={e=>setGcid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com" className="input-base" style={{fontFamily:"'DM Mono',monospace",fontSize:12,marginBottom:12}}/>
+                <button onClick={()=>{ handleSave(); setTimeout(()=>onConnectDrive(gcid.trim()),200); }}
+                  disabled={!gcid.trim()}
+                  style={{width:"100%",background:gcid.trim()?"#4285f4":"#f3f4f6",borderRadius:10,padding:"12px",color:gcid.trim()?"#fff":"#9ca3af",fontSize:12,letterSpacing:"0.05em",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:16}}>
+                  <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#fff" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#fff" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#fff" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#fff" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+                  Connect Google Drive
+                </button>
+
+                {/* Setup instructions */}
+                <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"16px"}}>
+                  <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af",marginBottom:10}}>How to get your Client ID</p>
+                  {[
+                    "Go to console.cloud.google.com",
+                    "Create a new project (or select existing)",
+                    "APIs & Services → Enable APIs → search \"Google Drive API\" → Enable",
+                    "APIs & Services → OAuth consent screen → External → fill in app name → Save",
+                    "APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID",
+                    "Application type: Web application",
+                    "Authorised JavaScript origins: add your app's URL (e.g. https://yourapp.netlify.app) — or http://localhost for local testing",
+                    "Copy the Client ID and paste it above",
+                  ].map((step,i)=>(
+                    <div key={i} style={{display:"flex",gap:10,marginBottom:8,alignItems:"flex-start"}}>
+                      <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#d97706",fontWeight:700,flexShrink:0,marginTop:1}}>{i+1}.</span>
+                      <span style={{fontSize:12,color:"#374151",fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"14px 16px"}}>
+            <p style={{fontSize:12,color:"#92400e",fontFamily:"'DM Mono',monospace",lineHeight:1.6,margin:0}}>⚠ API usage is billed to your Anthropic account. Brain dump and review calls typically cost a few pence each.</p>
+          </div>
+        </div>
+        <div className="sheet-footer">
+          <button onClick={handleSave} style={{width:"100%",background:"#1f2937",borderRadius:10,padding:"13px",color:"#fff",fontSize:12,letterSpacing:"0.07em",textTransform:"uppercase"}}>Save settings</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+const VIEWS = ["Today","All","Work","Ideas","Personal","Done"];
+
+function App() {
+  const [notes, setNotesRaw]        = useState(()=>load(SK_NOTES,[]));
+  const [cats, setCatsRaw]          = useState(()=>load(SK_CATS,DEFAULT_CATS));
+  const [apiKey, setApiKey]         = useState(()=>localStorage.getItem(SK_API_KEY)||"");
+  const [googleClientId, setGoogleClientId] = useState(()=>localStorage.getItem(SK_G_CLIENT)||"");
+  const [view, setView]             = useState("Today");
+  const [sheet, setSheet]           = useState(null);
+  const [editNote, setEditNote]     = useState(null);
+
+  // Drive sync state
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [syncStatus, setSyncStatus]         = useState("offline"); // offline|idle|syncing|error
+  const [lastSync, setLastSync]             = useState(null);
+  const saveTimerRef = useRef(null);
+
+  // Persist to localStorage and queue Drive save
+  const setNotes = useCallback(fn => {
+    setNotesRaw(prev => {
+      const next = typeof fn==="function" ? fn(prev) : fn;
+      lsave(SK_NOTES, next);
+      queueDriveSave(next, null);
+      return next;
+    });
+  },[driveConnected]);
+
+  const setCats = useCallback(fn => {
+    setCatsRaw(prev => {
+      const next = typeof fn==="function" ? fn(prev) : fn;
+      lsave(SK_CATS, next);
+      queueDriveSave(null, next);
+      return next;
+    });
+  },[driveConnected]);
+
+  const queueDriveSave = useCallback((newNotes, newCats) => {
+    if (!driveConnected) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSyncStatus("syncing");
+      try {
+        const n = newNotes ?? load(SK_NOTES,[]);
+        const c = newCats  ?? load(SK_CATS, DEFAULT_CATS);
+        await saveToDrive({notes:n, cats:c, updatedAt:new Date().toISOString()});
+        setSyncStatus("idle");
+        setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+      } catch(e) { console.error("Drive save failed:",e); setSyncStatus("error"); }
+    }, 1500);
+  },[driveConnected]);
+
+  // Google OAuth
+  const initTokenClient = useCallback((clientId) => {
+    if (!window.google) { setTimeout(()=>initTokenClient(clientId), 500); return; }
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: DRIVE_SCOPE,
+      callback: async (resp) => {
+        if (resp.error) { setSyncStatus("error"); return; }
+        gAccessToken = resp.access_token;
+        setDriveConnected(true);
+        setSyncStatus("syncing");
+        try {
+          const data = await loadFromDrive();
+          if (data) {
+            if (data.notes) { setNotesRaw(data.notes); lsave(SK_NOTES,data.notes); }
+            if (data.cats)  { setCatsRaw(data.cats);   lsave(SK_CATS, data.cats);  }
+          } else {
+            // First time — push local data to Drive
+            const n = load(SK_NOTES,[]);
+            const c = load(SK_CATS, DEFAULT_CATS);
+            await saveToDrive({notes:n,cats:c,updatedAt:new Date().toISOString()});
+          }
+          setSyncStatus("idle");
+          setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+        } catch(e) { console.error("Drive load failed:",e); setSyncStatus("error"); }
+      }
+    });
+  },[]);
+
+  const connectDrive = useCallback((clientId) => {
+    const cid = clientId || googleClientId;
+    if (!cid) { setSheet("settings"); return; }
+    initTokenClient(cid);
+    setTimeout(()=>{ if (tokenClient) tokenClient.requestAccessToken(); }, 600);
+  },[googleClientId, initTokenClient]);
+
+  const disconnectDrive = () => {
+    gAccessToken = null; driveFileId = null; tokenClient = null;
+    setDriveConnected(false); setSyncStatus("offline");
+  };
+
+  const manualSync = async () => {
+    if (!gAccessToken) { connectDrive(); return; }
+    setSyncStatus("syncing");
+    try {
+      await saveToDrive({notes:load(SK_NOTES,[]),cats:load(SK_CATS,DEFAULT_CATS),updatedAt:new Date().toISOString()});
+      setSyncStatus("idle");
+      setLastSync(new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+    } catch { setSyncStatus("error"); }
+  };
+
+  // Note operations
+  const addNote = ({text,catId,dueDate}) => {
+    const n={id:uid(),text,catId,dueDate,done:false,snoozedUntil:null,createdAt:new Date().toISOString(),updatedAt:null};
+    setNotes(ns=>[n,...ns]);
+  };
+  const addMany     = items => setNotes(ns=>[...items,...ns]);
+  const markDone    = id  => setNotes(ns=>ns.map(n=>n.id===id?{...n,done:true,doneAt:new Date().toISOString()}:n));
+  const snooze      = (id,days) => setNotes(ns=>ns.map(n=>n.id===id?{...n,snoozedUntil:addDays(days)}:n));
+  const saveEdit    = upd => { setNotes(ns=>ns.map(n=>n.id===upd.id?upd:n)); setSheet(null); setEditNote(null); };
+  const deleteNote  = id  => setNotes(ns=>ns.filter(n=>n.id!==id));
+  const updateNote  = upd => setNotes(ns=>ns.map(n=>n.id===upd.id?upd:n));
+  const openEdit    = note => { setEditNote(note); setSheet("edit"); };
+
+  const today         = todayStr();
+  const todayItems    = notes.filter(isTodayItem);
+  const upcomingItems = notes.filter(n=>isVisible(n)&&n.dueDate&&n.dueDate>today).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const noDueItems    = notes.filter(n=>isVisible(n)&&!n.dueDate);
+  const doneItems     = notes.filter(n=>n.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""));
+
+  let mainNotes = null;
+  if (view==="All")      mainNotes=notes.filter(isVisible);
+  else if (view==="Work")     mainNotes=notes.filter(n=>isVisible(n)&&n.catId==="work");
+  else if (view==="Ideas")    mainNotes=notes.filter(n=>isVisible(n)&&n.catId==="idea");
+  else if (view==="Personal") mainNotes=notes.filter(n=>isVisible(n)&&n.catId==="personal");
+  else if (view==="Done")     mainNotes=doneItems;
+
+  const openCount    = notes.filter(isVisible).length;
+  const overdueCount = notes.filter(n=>isVisible(n)&&n.dueDate&&n.dueDate<today).length;
+  const dayName      = new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
+  const shared       = {cats,onDone:markDone,onSnooze:snooze,onEdit:openEdit,onDelete:deleteNote};
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f7f6f3"}}>
+      <div style={{maxWidth:640,margin:"0 auto",padding:"24px 16px 120px"}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+          <div>
+            <h1 style={{margin:"0 0 2px",fontSize:22,fontFamily:"'Lora',serif",fontWeight:400,color:"#111",letterSpacing:"-0.02em"}}>{view==="Today"?dayName:view}</h1>
+            <p style={{margin:0,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#9ca3af"}}>{openCount} open{overdueCount>0?` · ${overdueCount} overdue`:""}</p>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setSheet("cats")} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 12px",fontSize:15,color:"#6b7280"}} title="Categories">⊕</button>
+            <button onClick={()=>setSheet("settings")} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 12px",fontSize:15,color:(!apiKey&&!driveConnected)?"#dc2626":"#6b7280"}} title="Settings">⚙</button>
+          </div>
+        </div>
+
+        {/* Sync bar */}
+        <SyncBar status={syncStatus} lastSync={lastSync} onSync={manualSync} connected={driveConnected}/>
+
+        {/* Warnings */}
+        {!apiKey && (
+          <div onClick={()=>setSheet("settings")} style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,padding:"12px 16px",marginBottom:12,cursor:"pointer",display:"flex",alignItems:"center",gap:10}} className="fade">
+            <span style={{fontSize:15}}>⚠</span>
+            <div>
+              <p style={{margin:0,fontSize:12,color:"#dc2626",fontFamily:"'DM Mono',monospace",fontWeight:600}}>Anthropic API key needed for brain dump & review</p>
+              <p style={{margin:0,fontSize:12,color:"#9ca3af",fontFamily:"'Lora',serif"}}>Tap to add in Settings</p>
+            </div>
+          </div>
+        )}
+        {!driveConnected && (
+          <div onClick={()=>connectDrive()} style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 16px",marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",gap:10}} className="fade">
+            <span style={{fontSize:15}}>☁</span>
+            <div>
+              <p style={{margin:0,fontSize:12,color:"#0369a1",fontFamily:"'DM Mono',monospace",fontWeight:600}}>Connect Google Drive for cross-device sync</p>
+              <p style={{margin:0,fontSize:12,color:"#9ca3af",fontFamily:"'Lora',serif"}}>{googleClientId?"Tap to connect":"Tap Settings ⚙ to set up"}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Nav tabs */}
+        <div className="tab-bar" style={{marginBottom:20}}>
+          {VIEWS.map(v=>{
+            const active=view===v;
+            const badge =v==="Today"?todayItems.length:null;
+            return (
+              <button key={v} className="tab" onClick={()=>setView(v)} style={{background:active?"#1f2937":"#fff",border:"1px solid #e5e7eb",color:active?"#fff":"#6b7280",fontFamily:"'DM Mono',monospace"}}>
+                {v}
+                {badge>0 && <span style={{background:active?"rgba(255,255,255,0.25)":"#fef2f2",color:active?"#fff":"#dc2626",borderRadius:8,padding:"0 6px",fontSize:9,fontWeight:700}}>{badge}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <QuickCapture cats={cats} onAdd={addNote}/>
+
+        {/* Today view */}
+        {view==="Today" && (
+          <div>
+            {todayItems.length===0&&upcomingItems.length===0&&noDueItems.length===0 && (
+              <div style={{textAlign:"center",padding:"56px 20px"}}>
+                <div style={{fontSize:32,marginBottom:12}}>✦</div>
+                <p style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:15,color:"#9ca3af",margin:0}}>Nothing due. Use Brain Dump to capture everything on your mind.</p>
+              </div>
+            )}
+            {todayItems.length>0    && <div style={{marginBottom:24}}><SectionHead label="Needs attention" count={todayItems.length}    color="#dc2626"/>{todayItems.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}</div>}
+            {upcomingItems.length>0 && <div style={{marginBottom:24}}><SectionHead label="Coming up"       count={upcomingItems.length} color="#d97706"/>{upcomingItems.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}</div>}
+            {noDueItems.length>0    && (
+              <div style={{marginBottom:24}}>
+                <SectionHead label="No date set" count={noDueItems.length} color="#6b7280"/>
+                <p style={{fontSize:12,color:"#9ca3af",fontFamily:"'Lora',serif",fontStyle:"italic",marginTop:-6,marginBottom:10,lineHeight:1.6}}>These won't surface until you give them a date — or run a Review.</p>
+                {noDueItems.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Other views */}
+        {view!=="Today" && mainNotes && (
+          <div>
+            {mainNotes.length===0 && <div style={{textAlign:"center",padding:"48px 20px"}}><p style={{fontFamily:"'Lora',serif",fontStyle:"italic",fontSize:14,color:"#9ca3af",margin:0}}>Nothing here.</p></div>}
+            {mainNotes.map(n=><NoteCard key={n.id} note={n} {...shared}/>)}
+          </div>
+        )}
+      </div>
+
+      {/* FABs */}
+      <div className="fab-row">
+        <button className="fab fab-amber" onClick={()=>setSheet("dump")}>✦ Brain dump</button>
+        <button className="fab fab-primary" onClick={()=>setSheet("review")} disabled={openCount===0} style={{opacity:openCount>0?1:0.4}}>◎ Review</button>
+      </div>
+
+      {/* Sheets */}
+      {sheet==="dump"     && <BrainDumpSheet cats={cats} apiKey={apiKey} onSaveAll={addMany} onClose={()=>setSheet(null)}/>}
+      {sheet==="review"   && <ReviewSheet notes={notes} cats={cats} apiKey={apiKey} onUpdateNote={updateNote} onClose={()=>setSheet(null)}/>}
+      {sheet==="cats"     && <CatsSheet cats={cats} setCats={setCats} onClose={()=>setSheet(null)}/>}
+      {sheet==="settings" && <SettingsSheet apiKey={apiKey} setApiKey={setApiKey} googleClientId={googleClientId} setGoogleClientId={setGoogleClientId} driveConnected={driveConnected} onConnectDrive={connectDrive} onDisconnectDrive={disconnectDrive} onClose={()=>setSheet(null)}/>}
+      {sheet==="edit"&&editNote && <EditSheet note={editNote} cats={cats} onSave={saveEdit} onClose={()=>{setSheet(null);setEditNote(null);}}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
