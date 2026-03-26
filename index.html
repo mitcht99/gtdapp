@@ -177,42 +177,50 @@ Keep text concise. Split compound sentences. Do NOT assign categories or dates.`
   return JSON.parse(raw.replace(/```json|```/g,"").trim());
 }
 
-async function gtdClarify(apiKey,messages,noteText){
-  const system=`You are a GTD (Getting Things Done) coach helping process inbox items one at a time.
+// Simple markdown renderer — bold, italic, inline code only
+function renderMd(text){
+  if(!text)return"";
+  return text
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g,"<em>$1</em>")
+    .replace(/`(.+?)`/g,"<code style='background:#e5e7eb;border-radius:3px;padding:1px 5px;font-size:12px'>$1</code>")
+    .replace(/\n/g,"<br/>");
+}
 
-WORKFLOW — work through in order, one question at a time:
+async function gtdClarify(apiKey,messages,noteText){
+  const system=`You are a GTD (Getting Things Done) coach helping process ONE inbox item.
+
+Your ONLY job is to clarify this specific item: "${noteText}"
+
+WORKFLOW — one question at a time:
 1. Is this actionable? If no → trash, Reference, or Someday/Maybe
 2. If yes → Project (needs more than one action) or single Next Action?
-3. If Project → What's the desired outcome? What's the very next physical action? (Planning IS a valid next action for a project, e.g. "Plan the kitchen renovation", "Research options for X")
-4. If Next Action → What's the exact next physical action? Be specific and physical.
-5. What context? (@work @home @calls @errands @computer @email @reading @agenda — or suggest one that fits)
+3. If Project → desired outcome? Next physical action? (Planning IS valid: "Plan X", "Research options for Y")
+4. If Next Action → exact next physical action? (specific and physical)
+5. What context? (@work @home @calls @errands @computer @email @reading — or suggest one)
 6. Due date or whenever?
 
 RULES:
-- Ask ONE question at a time
-- Be brief and direct
-- Don't re-ask answered questions
-- The 2-minute rule: if it takes <2 min, say do it now
-- When you have enough to decide, say so and stop asking
+- Ask ONE question at a time. Be brief.
+- Never re-ask answered questions.
+- 2-minute rule: if it takes <2 min, say do it now.
+- If the user asks about navigation, next items, or anything unrelated to THIS item, redirect them: "Use the Next item button to move on — let's finish this one first."
+- When you have list + context (for next actions) or just list (for others), set ready:true and give a brief summary like "Got it — filing as Next Action @home."
 
-Current item: "${noteText}"
-
-After your conversational reply, always append a JSON block on its own line in this exact format (update fields as you learn them, use null if unknown):
-<gtd>{"list":"inbox"|"next"|"project"|"waiting"|"someday"|"reference"|null,"context":"@work"|"@home"|"@calls"|"@errands"|"@computer"|"@email"|"@reading"|"@agenda"|null,"nextAction":string|null,"dueDate":"YYYY-MM-DD"|null,"ready":true|false}</gtd>
-- list: set as soon as you know (next=single action, project=multi-step, etc.)
-- context: set when user confirms it
-- nextAction: the exact next physical action text when confirmed
-- ready: true only when you have enough to file it and have told the user`;
+IMPORTANT — always end your reply with this exact block on its own line:
+<gtd>{"list":"inbox"|"next"|"project"|"waiting"|"someday"|"reference"|null,"context":string|null,"nextAction":string|null,"dueDate":"YYYY-MM-DD"|null,"ready":true|false}</gtd>
+- list: set as soon as known
+- context: required before ready:true for "next" items
+- nextAction: exact action text when confirmed
+- ready: true only when you have enough AND have summarised the decision to the user`;
 
   const raw=await callClaude(apiKey,messages,system);
-
-  // Extract the <gtd> block and parse it
   const gtdMatch=raw.match(/<gtd>([\s\S]*?)<\/gtd>/);
   let state={list:null,context:null,nextAction:null,dueDate:null,ready:false};
   if(gtdMatch){
     try{ state={...state,...JSON.parse(gtdMatch[1])}; }catch{}
   }
-  // Clean message — remove the <gtd> block from display
   const message=raw.replace(/<gtd>[\s\S]*?<\/gtd>/,"").trim();
   return{message,state};
 }
@@ -357,21 +365,23 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
   const inputRef=useRef(null);
   const lm=getListMeta(pendingList||note.list||"inbox");
 
+  const decideRef=useRef(null);
+
   // Apply state extracted from Claude's GTD JSON block
   const applyState=useCallback((state,autoDecide=true)=>{
-    if(state.context&&state.context!==selectedCtx) setSelectedCtx(state.context);
-    if(state.nextAction&&state.nextAction!==actionText) setActionText(state.nextAction);
-    if(state.dueDate&&state.dueDate!==deferDate) setDeferDate(state.dueDate);
+    if(state.context) setSelectedCtx(c=>c||state.context);
+    if(state.nextAction) setActionText(a=>a||state.nextAction);
+    if(state.dueDate) setDeferDate(d=>d||state.dueDate);
     if(state.list) setPendingList(state.list);
     // Auto-decide when Claude says ready and we have a list
-    if(autoDecide&&state.ready&&state.list&&state.list!=="inbox"){
-      setTimeout(()=>decide(state.list,{
+    if(autoDecide&&state.ready&&state.list&&state.list!=="inbox"&&decideRef.current){
+      setTimeout(()=>decideRef.current(state.list,{
         nextAction:state.nextAction||undefined,
         context:state.context||undefined,
         date:state.dueDate||undefined,
-      }),600);
+      }),800);
     }
-  },[selectedCtx,actionText,deferDate]);
+  },[]);
 
   useEffect(()=>{
     if(savedMsgs.length===0) openConvo();
@@ -443,6 +453,7 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
   };
 
   const decide=(list,opts={})=>{
+    if(decided)return; // prevent double-fire
     const upd={
       ...note,list,
       context:opts.context||selectedCtx||null,
@@ -452,17 +463,15 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
       hasConvo:true,
     };
     if(list==="done"){upd.done=true;upd.doneAt=new Date().toISOString();}
-    // Add decision to conversation
-    const decMsg={role:"assistant",content:`✓ Decision: moved to ${getListMeta(list).label}${opts.nextAction?` · Next: ${opts.nextAction}`:""}${opts.date?` · Due: ${fmtDate(opts.date)}`:""}`,ts:Date.now(),isDecision:true};
-    const finalMsgs=[...messages,decMsg];
-    onSaveConvo(note.id,finalMsgs);
+    const decMsg={role:"assistant",content:`✓ Filed: ${getListMeta(list).label}${upd.context?` · ${upd.context}`:""}${upd.nextAction?` · ${upd.nextAction}`:""}${upd.dueDate?` · due ${fmtDate(upd.dueDate)}`:""}`,ts:Date.now(),isDecision:true};
+    setMessages(m=>[...m,decMsg]);
+    onSaveConvo(note.id,[...messages,decMsg]);
     onUpdateNote(upd);
     setDecided(true);
-    // Auto-advance to next inbox item after 1.5 seconds
-    if(onNextInbox){
-      setTimeout(()=>onNextInbox(),1500);
-    }
+    if(onNextInbox) setTimeout(()=>onNextInbox(),1400);
   };
+  // Keep ref current so applyState can call it without stale closure
+  decideRef.current=decide;
 
   const formatTs=ts=>{
     if(!ts)return"";
@@ -582,8 +591,8 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
         <div style={{flex:1,overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:8,WebkitOverflowScrolling:"touch"}}>
           {messages.map((m,i)=>(
             <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="assistant"?"flex-start":"flex-end"}}>
-              <div className={`bubble ${m.role==="assistant"?"bubble-ai":"bubble-user"}`} style={{background:m.isDecision?"#f0fdf4":undefined,color:m.isDecision?"#065f46":undefined,borderColor:m.isDecision?"#86efac":undefined}}>
-                {m.content}
+              <div className={`bubble ${m.role==="assistant"?"bubble-ai":"bubble-user"}`} style={{background:m.isDecision?"#f0fdf4":undefined,color:m.isDecision?"#065f46":undefined}}>
+                <span dangerouslySetInnerHTML={{__html:renderMd(m.content)}}/>
               </div>
               {m.ts&&<div className="bubble-meta">{formatTs(m.ts)}</div>}
             </div>
