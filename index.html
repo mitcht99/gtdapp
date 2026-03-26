@@ -177,28 +177,44 @@ Keep text concise. Split compound sentences. Do NOT assign categories or dates.`
   return JSON.parse(raw.replace(/```json|```/g,"").trim());
 }
 
-async function gtdClarify(apiKey,messages,noteText,noteContext){
-  const system=`You are a GTD (Getting Things Done) coach helping process inbox items.
+async function gtdClarify(apiKey,messages,noteText){
+  const system=`You are a GTD (Getting Things Done) coach helping process inbox items one at a time.
 
-WORKFLOW — work through these questions in order, one at a time:
-1. "Is this actionable?" — if no, suggest: trash it, file as Reference, or park in Someday/Maybe
-2. If yes: "Is this a Project (needs more than one action) or a single Next Action?"
-3. If Project: "What's the desired outcome?" and "What's the very next physical action?"
-4. If Next Action: "What's the exact next physical action?" (must be specific and physical, e.g. "Call John on 0161..." not "Sort out John")
-5. "What context does this belong to?" (@work @home @calls @errands @computer @email @reading)
-6. "Does this have a due date, or can it be done whenever?"
+WORKFLOW — work through in order, one question at a time:
+1. Is this actionable? If no → trash, Reference, or Someday/Maybe
+2. If yes → Project (needs more than one action) or single Next Action?
+3. If Project → What's the desired outcome? What's the very next physical action? (Planning IS a valid next action for a project, e.g. "Plan the kitchen renovation", "Research options for X")
+4. If Next Action → What's the exact next physical action? Be specific and physical.
+5. What context? (@work @home @calls @errands @computer @email @reading @agenda — or suggest one that fits)
+6. Due date or whenever?
 
 RULES:
-- Ask ONE question at a time — never multiple
-- Be direct and brief — no lengthy explanations
-- If they've already answered something, don't ask again — use their previous answers
-- When you have enough to make a decision, summarise it and stop
-- The 2-minute rule: if it takes less than 2 minutes, tell them to do it now
+- Ask ONE question at a time
+- Be brief and direct
+- Don't re-ask answered questions
+- The 2-minute rule: if it takes <2 min, say do it now
+- When you have enough to decide, say so and stop asking
 
 Current item: "${noteText}"
-${noteContext?`Previous conversation context: ${noteContext}`:""}`;
 
-  return callClaude(apiKey,messages,system);
+After your conversational reply, always append a JSON block on its own line in this exact format (update fields as you learn them, use null if unknown):
+<gtd>{"list":"inbox"|"next"|"project"|"waiting"|"someday"|"reference"|null,"context":"@work"|"@home"|"@calls"|"@errands"|"@computer"|"@email"|"@reading"|"@agenda"|null,"nextAction":string|null,"dueDate":"YYYY-MM-DD"|null,"ready":true|false}</gtd>
+- list: set as soon as you know (next=single action, project=multi-step, etc.)
+- context: set when user confirms it
+- nextAction: the exact next physical action text when confirmed
+- ready: true only when you have enough to file it and have told the user`;
+
+  const raw=await callClaude(apiKey,messages,system);
+
+  // Extract the <gtd> block and parse it
+  const gtdMatch=raw.match(/<gtd>([\s\S]*?)<\/gtd>/);
+  let state={list:null,context:null,nextAction:null,dueDate:null,ready:false};
+  if(gtdMatch){
+    try{ state={...state,...JSON.parse(gtdMatch[1])}; }catch{}
+  }
+  // Clean message — remove the <gtd> block from display
+  const message=raw.replace(/<gtd>[\s\S]*?<\/gtd>/,"").trim();
+  return{message,state};
 }
 
 // ── Google Drive ──────────────────────────────────────────────────────────────
@@ -336,19 +352,30 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
   const [actionText,setActionText]=useState(note.nextAction||"");
   const [deferDate,setDeferDate]=useState(note.dueDate||"");
   const [selectedCtx,setSelectedCtx]=useState(note.context||"");
+  const [pendingList,setPendingList]=useState(note.list==="inbox"?null:note.list);
   const bottomRef=useRef(null);
   const inputRef=useRef(null);
-  const lm=getListMeta(note.list||"inbox");
+  const lm=getListMeta(pendingList||note.list||"inbox");
 
-  // Open conversation — resume or start fresh
-  useEffect(()=>{
-    if(savedMsgs.length===0){
-      // Start fresh
-      openConvo();
-    } else {
-      // Resume — add a continuation message
-      resumeConvo();
+  // Apply state extracted from Claude's GTD JSON block
+  const applyState=useCallback((state,autoDecide=true)=>{
+    if(state.context&&state.context!==selectedCtx) setSelectedCtx(state.context);
+    if(state.nextAction&&state.nextAction!==actionText) setActionText(state.nextAction);
+    if(state.dueDate&&state.dueDate!==deferDate) setDeferDate(state.dueDate);
+    if(state.list) setPendingList(state.list);
+    // Auto-decide when Claude says ready and we have a list
+    if(autoDecide&&state.ready&&state.list&&state.list!=="inbox"){
+      setTimeout(()=>decide(state.list,{
+        nextAction:state.nextAction||undefined,
+        context:state.context||undefined,
+        date:state.dueDate||undefined,
+      }),600);
     }
+  },[selectedCtx,actionText,deferDate]);
+
+  useEffect(()=>{
+    if(savedMsgs.length===0) openConvo();
+    else resumeConvo();
   },[]);
 
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,thinking]);
@@ -356,15 +383,16 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
   const resumeConvo=async()=>{
     if(!apiKey)return;
     setThinking(true);
-    const prevSummary=savedMsgs.map(m=>`${m.role}: ${m.content}`).slice(-4).join("\n");
+    const prevSummary=savedMsgs.map(m=>`${m.role}: ${m.content}`).slice(-6).join("\n");
     try{
-      const resumeMsg=await callClaude(apiKey,
-        [{role:"user",content:`Briefly acknowledge you remember our previous discussion about this item, then continue from where we left off or ask what's changed.\n\nPrevious conversation:\n${prevSummary}`}],
-        `You are a GTD coach. The item is: "${note.text}". Be concise, one question at a time.`
+      const {message,state}=await gtdClarify(apiKey,
+        [{role:"user",content:`Briefly acknowledge you remember our previous discussion, then continue or ask what's changed.\n\nPrevious conversation:\n${prevSummary}`}],
+        note.text
       );
-      const newMsgs=[...savedMsgs,{role:"assistant",content:resumeMsg,ts:Date.now()}];
+      const newMsgs=[...savedMsgs,{role:"assistant",content:message,ts:Date.now()}];
       setMessages(newMsgs);
       onSaveConvo(note.id,newMsgs);
+      applyState(state,false); // apply but don't auto-decide on resume
     }catch{
       setMessages(m=>[...m,{role:"assistant",content:"Welcome back. Where did we get to with this one?",ts:Date.now()}]);
     }
@@ -378,10 +406,11 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
     }
     setThinking(true);
     try{
-      const r=await gtdClarify(apiKey,[{role:"user",content:`Let's process this: "${note.text}"`}],note.text,"");
-      const msgs=[{role:"assistant",content:r,ts:Date.now()}];
+      const {message,state}=await gtdClarify(apiKey,[{role:"user",content:`Let's process this: "${note.text}"`}],note.text);
+      const msgs=[{role:"assistant",content:message,ts:Date.now()}];
       setMessages(msgs);
       onSaveConvo(note.id,msgs);
+      applyState(state,false);
     }catch{
       const msgs=[{role:"assistant",content:"Is this actionable — can you do something about it?",ts:Date.now()}];
       setMessages(msgs);
@@ -390,23 +419,27 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
     setThinking(false);
   };
 
-  const send=async()=>{
-    if(!input.trim()||thinking)return;
-    const userMsg={role:"user",content:input.trim(),ts:Date.now()};
-    const next=[...messages,userMsg];
+  const processReply=async(userContent,priorMessages)=>{
+    const next=[...priorMessages,{role:"user",content:userContent,ts:Date.now()}];
     setMessages(next);setInput("");setThinking(true);
     onSaveConvo(note.id,next);
     try{
-      const r=await gtdClarify(apiKey,next.map(({role,content})=>({role,content})),note.text,"");
-      const withReply=[...next,{role:"assistant",content:r,ts:Date.now()}];
+      const {message,state}=await gtdClarify(apiKey,next.map(({role,content})=>({role,content})),note.text);
+      const withReply=[...next,{role:"assistant",content:message,ts:Date.now()}];
       setMessages(withReply);
       onSaveConvo(note.id,withReply);
+      applyState(state,true);
     }catch{
       const withErr=[...next,{role:"assistant",content:"Got it — what do you want to do with this?",ts:Date.now()}];
       setMessages(withErr);
       onSaveConvo(note.id,withErr);
     }
     setThinking(false);
+  };
+
+  const send=async()=>{
+    if(!input.trim()||thinking)return;
+    await processReply(input.trim(),messages);
   };
 
   const decide=(list,opts={})=>{
@@ -497,39 +530,27 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
   const quickReplies=lastAssistantMsg&&!thinking?getQuickReplies(lastAssistantMsg.content):[];
 
   const handleQuickReply=async(reply)=>{
-    // If user picked "Something else", focus the input with a hint
     if(reply==="Something else"){
       setInput("@");
       setTimeout(()=>inputRef.current?.focus(),50);
       return;
     }
-    // If the reply looks like a new @context not already known, save it
     if(reply.startsWith("@")&&!allContexts.includes(reply)){
       setCustomContexts(c=>[...c,reply]);
+      setSelectedCtx(reply);
     }
-    setInput("");
-    const userMsg={role:"user",content:reply,ts:Date.now()};
-    const next=[...messages,userMsg];
-    setMessages(next);setThinking(true);
-    onSaveConvo(note.id,next);
-    try{
-      const r=await gtdClarify(apiKey,next.map(({role,content})=>({role,content})),note.text,"");
-      const withReply=[...next,{role:"assistant",content:r,ts:Date.now()}];
-      setMessages(withReply);onSaveConvo(note.id,withReply);
-    }catch{
-      const withErr=[...next,{role:"assistant",content:"Got it — what do you want to do with this?",ts:Date.now()}];
-      setMessages(withErr);onSaveConvo(note.id,withErr);
-    }
-    setThinking(false);
+    await processReply(reply,messages);
   };
 
   // When user types a freeform @context and sends it, save it too
   const sendWithContextSave=async()=>{
     const trimmed=input.trim();
+    if(!trimmed||thinking)return;
     if(trimmed.startsWith("@")&&!allContexts.includes(trimmed)){
       setCustomContexts(c=>[...c,trimmed]);
+      setSelectedCtx(trimmed);
     }
-    await send();
+    await processReply(trimmed,messages);
   };
 
   return(
@@ -548,10 +569,12 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
           {/* Current item */}
           <div style={{background:"#f9faf8",border:"1px solid #e8e6e3",borderLeft:`3px solid ${lm.color}`,borderRadius:9,padding:"10px 13px"}}>
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
-              <ListTag listId={note.list||"inbox"}/>
-              {note.context&&<span className="ctx-badge">{note.context}</span>}
+              <ListTag listId={pendingList||note.list||"inbox"}/>
+              {selectedCtx&&<span className="ctx-badge">{selectedCtx}</span>}
+              {deferDate&&<span style={{fontSize:9,fontFamily:"'DM Mono',monospace",color:"#d97706"}}>📅 {fmtDate(deferDate)}</span>}
             </div>
             <p style={{margin:0,fontSize:14,color:"#1f2937",fontFamily:"'Lora',serif",lineHeight:1.6}}>{note.text}</p>
+            {actionText&&<p style={{margin:"5px 0 0",fontSize:12,color:"#2563eb",fontFamily:"'DM Mono',monospace"}}>→ {actionText}</p>}
           </div>
         </div>
 
@@ -599,12 +622,12 @@ function ReviewSheet({note,apiKey,convos,onSaveConvo,onUpdateNote,onClose,onNext
             <p style={{margin:"0 0 8px",fontSize:9,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"#9ca3af"}}>File it</p>
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
               <button className="dec-btn" style={{background:"#f0fdf4",color:"#059669",borderColor:"#86efac"}} onClick={()=>decide("done")}>✓ Done</button>
-              <button className="dec-btn" style={{background:showAction?"#eff6ff":"#fff",color:"#2563eb",borderColor:showAction?"#93c5fd":"#e5e7eb"}} onClick={()=>{setShowAction(v=>!v);setShowDefer(false);setShowContext(false);}}>⚡ Next action</button>
-              <button className="dec-btn" style={{color:"#7c3aed"}} onClick={()=>decide("project")}>📁 Project</button>
-              <button className="dec-btn" style={{color:"#d97706"}} onClick={()=>decide("waiting")}>⏳ Waiting</button>
+              <button className="dec-btn" style={{background:showAction||pendingList==="next"?"#eff6ff":"#fff",color:"#2563eb",borderColor:showAction||pendingList==="next"?"#93c5fd":"#e5e7eb"}} onClick={()=>{setShowAction(v=>!v);setShowDefer(false);setShowContext(false);}}>⚡ Next action{pendingList==="next"?" ✓":""}</button>
+              <button className="dec-btn" style={{color:"#7c3aed",background:pendingList==="project"?"#f5f3ff":"#fff",borderColor:pendingList==="project"?"#c4b5fd":"#e5e7eb"}} onClick={()=>decide("project",{nextAction:actionText||undefined,context:selectedCtx||undefined})}>📁 Project{pendingList==="project"?" ✓":""}</button>
+              <button className="dec-btn" style={{color:"#d97706",background:pendingList==="waiting"?"#fffbeb":"#fff"}} onClick={()=>decide("waiting")}>⏳ Waiting{pendingList==="waiting"?" ✓":""}</button>
               <button className="dec-btn" style={{background:showDefer?"#fffbeb":"#fff",color:"#d97706",borderColor:showDefer?"#fcd34d":"#e5e7eb"}} onClick={()=>{setShowDefer(v=>!v);setShowAction(false);setShowContext(false);}}>📅 Defer</button>
-              <button className="dec-btn" style={{color:"#0891b2"}} onClick={()=>decide("someday")}>☁ Someday</button>
-              <button className="dec-btn" style={{color:"#059669"}} onClick={()=>decide("reference")}>📚 Reference</button>
+              <button className="dec-btn" style={{color:"#0891b2",background:pendingList==="someday"?"#e0f2fe":"#fff"}} onClick={()=>decide("someday")}>☁ Someday{pendingList==="someday"?" ✓":""}</button>
+              <button className="dec-btn" style={{color:"#059669",background:pendingList==="reference"?"#f0fdf4":"#fff"}} onClick={()=>decide("reference")}>📚 Reference{pendingList==="reference"?" ✓":""}</button>
               <button className="dec-btn" style={{color:"#dc2626"}} onClick={()=>decide("done",{trash:true})}>🗑 Trash</button>
             </div>
 
