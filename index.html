@@ -237,8 +237,64 @@ function CItem({item,onChange,onDelete}){
   );
 }
 
+// ── Move Task Picker ─────────────────────────────────────────────────────────
+function MoveTaskPicker({task,projects,areas,onUpdate}){
+  const [open,setOpen]=useState(false);
+  const curProject=projects.find(p=>p.id===task.projectId);
+  return(
+    <div style={{marginBottom:12,position:'relative'}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,background:'#F2F2F7',border:'none',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#6B6B6B'}}>
+        {curProject?<><div style={{width:8,height:8,borderRadius:'50%',background:curProject.color||'#4B8EF7'}}/>{curProject.title}</>:<span>No project</span>}
+        <span style={{color:'#AEAEB2',fontSize:10,marginLeft:2}}>▾</span>
+      </button>
+      {open&&(
+        <div style={{position:'absolute',top:36,left:0,background:'#fff',border:'1px solid #E5E5EA',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,.1)',zIndex:200,minWidth:200,maxHeight:260,overflowY:'auto'}} className="fade">
+          <button onClick={()=>{onUpdate({...task,projectId:null,headingId:null,section:'inbox'});setOpen(false);}}
+            style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',background:'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#6B6B6B',cursor:'pointer',textAlign:'left'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}
+          >
+            <span>📥</span> Inbox (no project)
+          </button>
+          {/* Standalone projects */}
+          {projects.filter(p=>!p.areaId&&p.status==="active").map(p=>(
+            <button key={p.id} onClick={()=>{onUpdate({...task,projectId:p.id,headingId:null,section:'anytime'});setOpen(false);}}
+              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',background:task.projectId===p.id?'#EBF3FF':'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#1C1C1E',cursor:'pointer',textAlign:'left'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
+              onMouseLeave={e=>e.currentTarget.style.background=task.projectId===p.id?'#EBF3FF':'none'}
+            >
+              <div style={{width:8,height:8,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>{p.title}
+              {task.projectId===p.id&&<span style={{marginLeft:'auto',color:'#4B8EF7',fontSize:14}}>✓</span>}
+            </button>
+          ))}
+          {/* Projects grouped by area */}
+          {areas.map(a=>{
+            const aProjs=projects.filter(p=>p.areaId===a.id&&p.status==="active");
+            if(!aProjs.length)return null;
+            return(
+              <div key={a.id}>
+                <div style={{padding:'8px 14px 4px',fontSize:10,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>{a.name}</div>
+                {aProjs.map(p=>(
+                  <button key={p.id} onClick={()=>{onUpdate({...task,projectId:p.id,headingId:null,section:'anytime'});setOpen(false);}}
+                    style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 14px',background:task.projectId===p.id?'#EBF3FF':'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#1C1C1E',cursor:'pointer',textAlign:'left'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
+                    onMouseLeave={e=>e.currentTarget.style.background=task.projectId===p.id?'#EBF3FF':'none'}
+                  >
+                    <div style={{width:8,height:8,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>{p.title}
+                    {task.projectId===p.id&&<span style={{marginLeft:'auto',color:'#4B8EF7',fontSize:14}}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Task Row ──────────────────────────────────────────────────────────────────
-function TaskRow({task,project,onComplete,onUpdate,onDelete,showProject,apiKey}){
+function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete,showProject,apiKey}){
   const [expanded,setExpanded]=useState(false);
   const [completing,setCompleting]=useState(false);
   const [title,setTitle]=useState(task.title);
@@ -332,6 +388,8 @@ function TaskRow({task,project,onComplete,onUpdate,onDelete,showProject,apiKey})
               >{s}</button>
             ))}
           </div>
+          {/* Move to project */}
+          <MoveTaskPicker task={task} projects={projects} areas={areas} onUpdate={onUpdate}/>
           {/* Tags */}
           <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:12,flexWrap:'wrap'}}>
             {(task.tags||[]).map(t=>(
@@ -438,7 +496,7 @@ function HeadingRow({heading,onUpdate}){
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
-function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask,onCompleteTask,onDeleteTask,onAddHeading,onUpdateHeading}){
+function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask,onCompleteTask,onDeleteTask,onAddHeading,onUpdateHeading,onUpdateProject,onDeleteProject}){
   const area=areas.find(a=>a.id===project.areaId);
   const active=tasks.filter(t=>t.projectId===project.id&&!t.done);
   const done=tasks.filter(t=>t.projectId===project.id&&t.done);
@@ -446,13 +504,18 @@ function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask
   const progress=total>0?Math.round((done.length/total)*100):0;
   const noHead=active.filter(t=>!t.headingId);
   const groups=headings.map(h=>({h,tasks:active.filter(t=>t.headingId===h.id)}));
-  const sharedProps={project,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey};
+  const sharedProps={project,projects,areas,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey};
 
+  const [showEdit,setShowEdit]=useState(false);
   return(
     <div>
+      {showEdit&&<EditProjectSheet project={project} areas={areas} onSave={p=>{onUpdateProject(p);setShowEdit(false);}} onDelete={onDeleteProject} onClose={()=>setShowEdit(false)}/>}
       <div style={{padding:'24px 24px 16px'}}>
         {area&&<div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>{area.name}</div>}
-        <h1 style={{margin:'0 0 14px',fontSize:26,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',lineHeight:1.2}}>{project.title}</h1>
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:14}}>
+          <h1 style={{flex:1,margin:0,fontSize:26,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',lineHeight:1.2}}>{project.title}</h1>
+          <button onClick={()=>setShowEdit(true)} style={{background:'none',border:'none',color:'#AEAEB2',fontSize:20,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0}}>⋯</button>
+        </div>
         {total>0&&(
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{flex:1,height:4,background:'#E5E5EA',borderRadius:2,overflow:'hidden'}}>
@@ -619,6 +682,61 @@ function NewProjectSheet({areas,apiKey,onSave,onClose}){
           <button onClick={()=>{if(title.trim()){onSave({title,areaId,color,plan});onClose();}}} disabled={!title.trim()}
             style={{flex:2,background:title.trim()?'#4B8EF7':'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:title.trim()?'#fff':'#AEAEB2',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:title.trim()?'pointer':'default'}}
           >Create project</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── Edit Project Sheet ────────────────────────────────────────────────────────
+function EditProjectSheet({project,areas,onSave,onDelete,onClose}){
+  const [title,setTitle]=useState(project.title);
+  const [areaId,setAreaId]=useState(project.areaId||null);
+  const [color,setColor]=useState(project.color||COLORS[0]);
+  const [confirmDel,setConfirmDel]=useState(false);
+  const save=()=>{onSave({...project,title,areaId,color});onClose();};
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
+        <div className="handle"/>
+        <div className="sh-hdr" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Edit Project</h3>
+          <button onClick={onClose} style={{background:'none',fontSize:22,color:'#AEAEB2',border:'none',cursor:'pointer'}}>✕</button>
+        </div>
+        <div className="sh-body">
+          <input value={title} onChange={e=>setTitle(e.target.value)} className="inp" style={{marginBottom:16}} autoFocus/>
+          {/* Color */}
+          <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.08em',color:'#AEAEB2',marginBottom:8}}>Colour</p>
+          <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+            {COLORS.map(col=>(
+              <div key={col} onClick={()=>setColor(col)} style={{width:28,height:28,borderRadius:'50%',background:col,cursor:'pointer',boxShadow:color===col?`0 0 0 2px #fff,0 0 0 4px ${col}`:'none',transition:'box-shadow .12s'}}/>
+            ))}
+          </div>
+          {/* Area */}
+          <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.08em',color:'#AEAEB2',marginBottom:8}}>Area</p>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:24}}>
+            <button onClick={()=>setAreaId(null)} style={{background:!areaId?'#EBF3FF':'#F2F2F7',border:`1px solid ${!areaId?'#4B8EF7':'transparent'}`,borderRadius:8,padding:'6px 14px',fontSize:12,fontFamily:"'DM Mono',monospace",color:!areaId?'#4B8EF7':'#6B6B6B',cursor:'pointer'}}>No area</button>
+            {areas.map(a=>(
+              <button key={a.id} onClick={()=>setAreaId(a.id)} style={{background:areaId===a.id?'#EBF3FF':'#F2F2F7',border:`1px solid ${areaId===a.id?'#4B8EF7':'transparent'}`,borderRadius:8,padding:'6px 14px',fontSize:12,fontFamily:"'DM Mono',monospace",color:areaId===a.id?'#4B8EF7':'#6B6B6B',cursor:'pointer'}}>{a.name}</button>
+            ))}
+          </div>
+          {/* Delete */}
+          {!confirmDel?(
+            <button onClick={()=>setConfirmDel(true)} style={{background:'none',border:'1px solid #FFD0D0',borderRadius:8,padding:'8px 16px',color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer',width:'100%'}}>Delete project…</button>
+          ):(
+            <div style={{background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:10,padding:'14px',textAlign:'center'}}>
+              <p style={{fontSize:13,color:'#FF3B30',fontFamily:"'Lora',serif",marginBottom:12}}>Delete "{project.title}"? Tasks will move to Inbox.</p>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setConfirmDel(false)} style={{flex:1,background:'#F2F2F7',border:'none',borderRadius:8,padding:'10px',color:'#6B6B6B',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Cancel</button>
+                <button onClick={()=>{onDelete(project.id);onClose();}} style={{flex:1,background:'#FF3B30',border:'none',borderRadius:8,padding:'10px',color:'#fff',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Delete</button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="sh-foot" style={{display:'flex',gap:8}}>
+          <button onClick={onClose} className="btn-ghost" style={{flex:1}}>Cancel</button>
+          <button onClick={save} disabled={!title.trim()} style={{flex:2,background:title.trim()?'#4B8EF7':'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:title.trim()?'#fff':'#AEAEB2',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:title.trim()?'pointer':'default'}}>Save changes</button>
         </div>
       </div>
     </div>
@@ -919,7 +1037,7 @@ function UpcomingView({tasks,projects,onUpdate,onComplete,onDelete,apiKey}){
           <div style={{padding:'16px 20px 4px',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>
             {new Date(date+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}
           </div>
-          {ts.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} showProject apiKey={apiKey}/>)}
+          {ts.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} projects={projects} areas={areas} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} showProject apiKey={apiKey}/>)}
         </div>
       ))}
     </div>
@@ -1017,6 +1135,14 @@ function App(){
     setSheet(null);
   };
   const addArea=f=>{setAreas(as=>[...as,{id:uid(),name:f.name,createdAt:new Date().toISOString()}]);};
+  const updateProject=upd=>setProjects(ps=>ps.map(p=>p.id===upd.id?{...p,...upd}:p));
+  const deleteProject=id=>{
+    setProjects(ps=>ps.filter(p=>p.id!==id));
+    // Move project tasks to inbox
+    setTasks(ts=>ts.map(t=>t.projectId===id?{...t,projectId:null,headingId:null,section:'inbox'}:t));
+    setHeadings(hs=>hs.filter(h=>h.projectId!==id));
+    setView('inbox');
+  };
   const addHeading=projectId=>{setHeadings(hs=>[...hs,{id:uid(),projectId,title:'New Heading',createdAt:new Date().toISOString()}]);};
 
   // ── View logic ──
@@ -1040,7 +1166,7 @@ function App(){
   const VIEW_LABELS={inbox:'Inbox',today:'Today',upcoming:'Upcoming',anytime:'Anytime',someday:'Someday',logbook:'Logbook'};
   const syncColor={idle:'#34C759',syncing:'#FF9500',error:'#FF3B30',offline:'#C7C7CC'}[syncStatus]||'#C7C7CC';
 
-  const sharedListProps={onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey};
+  const sharedListProps={projects,areas,onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey};
 
   return(
     <div className="shell">
@@ -1069,9 +1195,10 @@ function App(){
           {isProj&&curProj&&(
             <ProjectView
               project={curProj} tasks={tasks} headings={headings.filter(h=>h.projectId===projId)}
-              areas={areas} apiKey={apiKey}
+              areas={areas} projects={projects} apiKey={apiKey}
               onAddTask={addTask} onUpdateTask={updateTask} onCompleteTask={completeTask} onDeleteTask={deleteTask}
               onAddHeading={addHeading} onUpdateHeading={h=>setHeadings(hs=>hs.map(x=>x.id===h.id?h:x))}
+              onUpdateProject={updateProject} onDeleteProject={deleteProject}
             />
           )}
           {!isProj&&(
