@@ -35,6 +35,8 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes checkPop{0%{transform:scale(1)}40%{transform:scale(1.25)}70%{transform:scale(.9)}100%{transform:scale(1)}}
 @keyframes taskOut{0%{opacity:1;max-height:80px;transform:translateX(0)}60%{opacity:.2;transform:translateX(6px)}100%{opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;overflow:hidden}}
+.area-menu-btn{transition:opacity .15s;}
+div:hover>.area-menu-btn, div:hover > div > .area-menu-btn{opacity:1!important;}
 
 .fade{animation:fadeIn .18s ease;}
 .sheet{animation:slideUp .28s cubic-bezier(.34,1.56,.64,1);}
@@ -293,10 +295,46 @@ function MoveTaskPicker({task,projects,areas,onUpdate}){
   );
 }
 
+
+// ── Jump Start Popover ────────────────────────────────────────────────────────
+function JumpStart({task,onUpdate,onClose}){
+  const today=todayStr();
+  const [customDate,setCustomDate]=useState('');
+  const options=[
+    {label:'Today',      icon:'⭐', action:()=>onUpdate({...task,when:today,section:task.section==='someday'?'anytime':task.section})},
+    {label:'This Evening',icon:'🌙',action:()=>onUpdate({...task,when:today,section:'evening'})},
+    {label:'Tomorrow',   icon:'☀️',action:()=>onUpdate({...task,when:addDays(1),section:task.section==='someday'?'anytime':task.section})},
+    {label:'Next Week',  icon:'📅', action:()=>onUpdate({...task,when:addDays(7),section:task.section==='someday'?'anytime':task.section})},
+    {label:'Someday',    icon:'☁️',action:()=>onUpdate({...task,when:null,section:'someday'})},
+    {label:'No Date',    icon:'✕',  action:()=>onUpdate({...task,when:null,section:task.section==='someday'?'anytime':task.section})},
+  ];
+  return(
+    <div style={{position:'absolute',top:32,left:0,zIndex:300,background:'#fff',border:'1px solid #E5E5EA',borderRadius:12,boxShadow:'0 8px 28px rgba(0,0,0,.13)',minWidth:190,overflow:'hidden'}} className="fade" onClick={e=>e.stopPropagation()}>
+      {options.map(o=>(
+        <button key={o.label} onClick={()=>{o.action();onClose();}}
+          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#1C1C1E',cursor:'pointer',textAlign:'left'}}
+          onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
+          onMouseLeave={e=>e.currentTarget.style.background='none'}
+        >
+          <span style={{fontSize:15,width:20,textAlign:'center'}}>{o.icon}</span>{o.label}
+        </button>
+      ))}
+      <div style={{padding:'8px 10px',borderTop:'1px solid #F2F2F7',display:'flex',gap:6,alignItems:'center'}}>
+        <input type="date" value={customDate} onChange={e=>setCustomDate(e.target.value)}
+          style={{flex:1,border:'1px solid #E5E5EA',borderRadius:6,padding:'5px 8px',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#1C1C1E'}}
+        />
+        {customDate&&<button onClick={()=>{onUpdate({...task,when:customDate,section:task.section==='someday'?'anytime':task.section});onClose();}}
+          style={{background:'#4B8EF7',border:'none',borderRadius:6,padding:'5px 10px',color:'#fff',fontSize:11,cursor:'pointer'}}>Set</button>}
+      </div>
+    </div>
+  );
+}
+
 // ── Task Row ──────────────────────────────────────────────────────────────────
-function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete,showProject,apiKey}){
+function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete,showProject,apiKey,onTagClick}){
   const [expanded,setExpanded]=useState(false);
   const [completing,setCompleting]=useState(false);
+  const [showJS,setShowJS]=useState(false);
   const [title,setTitle]=useState(task.title);
   const [notes,setNotes]=useState(task.notes||'');
   const [newTag,setNewTag]=useState('');
@@ -351,9 +389,15 @@ function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete
               {wh&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:isOverdue(wh)?'#FF3B30':'#FF9500'}}>{fmtDate(wh)}</span>}
               {dl&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:late?'#FF3B30':'#6B6B6B'}}>⚑ {fmtDate(dl)}</span>}
               {clTotal>0&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2'}}>{clDone}/{clTotal}</span>}
-              {(task.tags||[]).map(t=><span key={t} style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:'#6B6B6B'}}>#{t}</span>)}
+              {(task.tags||[]).map(t=><span key={t} onClick={e=>{e.stopPropagation();onTagClick&&onTagClick(t);}} style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:'#4B8EF7',cursor:'pointer'}}>#{t}</span>)}
             </div>
           )}
+        </div>
+        <div style={{position:'relative',flexShrink:0}}>
+          <button onClick={e=>{e.stopPropagation();setShowJS(s=>!s);}} style={{background:'none',border:'none',cursor:'pointer',color:task.when?'#FF9500':'#D1D1D6',fontSize:13,padding:'2px 4px',lineHeight:1}} title="Schedule">
+            {task.when?fmtDate(task.when).slice(0,3):'📅'}
+          </button>
+          {showJS&&<><div style={{position:'fixed',inset:0,zIndex:299}} onClick={()=>setShowJS(false)}/><JumpStart task={task} onUpdate={onUpdate} onClose={()=>setShowJS(false)}/></>}
         </div>
         <div style={{fontSize:13,color:'#D1D1D6',paddingTop:2,flexShrink:0}}>{expanded?'▲':'▾'}</div>
       </div>
@@ -395,6 +439,7 @@ function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete
             {(task.tags||[]).map(t=>(
               <span key={t} style={{display:'inline-flex',alignItems:'center',gap:3,background:'#EBF3FF',color:'#4B8EF7',border:'1px solid #c3d7f7',borderRadius:12,padding:'2px 8px',fontSize:11,fontFamily:"'DM Mono',monospace"}}>
                 #{t}
+                <span onClick={e=>{e.stopPropagation();onTagClick&&onTagClick(t);}} style={{cursor:'pointer',opacity:.8,lineHeight:1,fontSize:11}}>↗</span>
                 <span onClick={()=>onUpdate({...task,tags:(task.tags||[]).filter(x=>x!==t)})} style={{cursor:'pointer',opacity:.6,lineHeight:1,fontSize:14}}>×</span>
               </span>
             ))}
@@ -504,18 +549,25 @@ function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask
   const progress=total>0?Math.round((done.length/total)*100):0;
   const noHead=active.filter(t=>!t.headingId);
   const groups=headings.map(h=>({h,tasks:active.filter(t=>t.headingId===h.id)}));
-  const sharedProps={project,projects,areas,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey};
+  const sharedProps={project,projects,areas,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey,onTagClick:null};
 
   const [showEdit,setShowEdit]=useState(false);
+  const [notes,setNotes]=useState(project.notes||'');
+  const saveNotes=()=>{if(notes!==project.notes)onUpdateProject({...project,notes});};
   return(
     <div>
       {showEdit&&<EditProjectSheet project={project} areas={areas} onSave={p=>{onUpdateProject(p);setShowEdit(false);}} onDelete={onDeleteProject} onClose={()=>setShowEdit(false)}/>}
       <div style={{padding:'24px 24px 16px'}}>
         {area&&<div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>{area.name}</div>}
-        <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:10}}>
           <h1 style={{flex:1,margin:0,fontSize:26,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',lineHeight:1.2}}>{project.title}</h1>
           <button onClick={()=>setShowEdit(true)} style={{background:'none',border:'none',color:'#AEAEB2',fontSize:20,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0}}>⋯</button>
         </div>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} onBlur={saveNotes}
+          placeholder="Project notes…"
+          rows={notes?undefined:1}
+          style={{width:'100%',border:'none',background:'transparent',fontSize:13,fontFamily:"'Lora',serif",color:'#6B6B6B',resize:'none',padding:0,lineHeight:1.6,marginBottom:8,outline:'none'}}
+        />
         {total>0&&(
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{flex:1,height:4,background:'#E5E5EA',borderRadius:2,overflow:'hidden'}}>
@@ -1021,10 +1073,19 @@ function AreaView({area,projects,tasks,areas,apiKey,onAddProject,onUpdateArea,on
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEditArea,setSidebarOpen}){
+function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEditArea,setSidebarOpen,tagFilter,setTagFilter}){
   const today=todayStr();
   const inboxN=tasks.filter(t=>!t.done&&t.section==='inbox').length;
   const todayN=tasks.filter(t=>!t.done&&((t.when&&t.when<=today)||(t.deadline&&t.deadline<=today&&!t.when))).length;
+  const [collapsed,setCollapsed]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem('th3_collapsed')||'[]'));}catch{return new Set();}});
+  const toggleCollapse=id=>{
+    setCollapsed(prev=>{
+      const next=new Set(prev);
+      next.has(id)?next.delete(id):next.add(id);
+      localStorage.setItem('th3_collapsed',JSON.stringify([...next]));
+      return next;
+    });
+  };
   const nav=[
     {id:'inbox',   label:'Inbox',    emoji:'📥',  count:inboxN, accent:'#4B8EF7'},
     {id:'today',   label:'Today',    emoji:'⭐',  count:todayN, accent:'#FF9500'},
@@ -1033,7 +1094,7 @@ function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEdi
     {id:'someday', label:'Someday',  emoji:'☁️', count:0,      accent:'#8E8E93'},
     {id:'logbook', label:'Logbook',  emoji:'✓',   count:0,      accent:'#34C759'},
   ];
-  const goTo=id=>{setView(id);setSidebarOpen(false);};
+  const goTo=id=>{setView(id);setTagFilter(null);setSidebarOpen(false);};
   const standalone=projects.filter(p=>!p.areaId&&p.status==='active');
   return(
     <div className="sidebar">
@@ -1042,16 +1103,16 @@ function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEdi
       </div>
       <div style={{padding:'4px 8px 8px'}}>
         {nav.map(v=>(
-          <button key={v.id} className={`nav-btn${view===v.id?' active':''}`} onClick={()=>goTo(v.id)}>
+          <button key={v.id} className={`nav-btn${view===v.id&&!tagFilter?' active':''}`} onClick={()=>goTo(v.id)}>
             <span style={{fontSize:16,lineHeight:1}}>{v.emoji}</span>
             <span className="lbl">{v.label}</span>
             {v.count>0&&<span className="cnt" style={{color:view===v.id?v.accent:undefined}}>{v.count}</span>}
           </button>
         ))}
       </div>
-      <div style={{flex:1,padding:'4px 8px',borderTop:'1px solid #F2F2F7'}}>
+      <div style={{flex:1,padding:'4px 8px',borderTop:'1px solid #F2F2F7',overflowY:'auto'}}>
         {standalone.map(p=>{
-          const id=`project:${p.id}`;const active=view===id;
+          const id=`project:${p.id}`;const active=view===id&&!tagFilter;
           const n=tasks.filter(t=>t.projectId===p.id&&!t.done).length;
           return(
             <button key={p.id} className={`nav-btn${active?' active':''}`} onClick={()=>goTo(id)} style={{background:active?`${p.color||'#4B8EF7'}18`:undefined}}>
@@ -1061,28 +1122,34 @@ function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEdi
             </button>
           );
         })}
-        {areas.map(a=>(
-          <div key={a.id}>
-            <div style={{display:'flex',alignItems:'center',padding:'10px 10px 3px 10px',gap:4}}>
-              <button onClick={()=>{setView(`area:${a.id}`);setSidebarOpen(false);}}
-                style={{flex:1,background:'none',border:'none',cursor:'pointer',textAlign:'left',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:view===`area:${a.id}`?'#4B8EF7':'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',padding:0}}
-              >{a.name}</button>
-              <button onClick={()=>onEditArea(a.id)} style={{background:'none',border:'none',color:'#C7C7CC',fontSize:14,cursor:'pointer',padding:'0 2px',lineHeight:1}} title="Edit area">⋯</button>
-              <button onClick={()=>onNewProject(a.id)} style={{background:'none',border:'none',color:'#C7C7CC',fontSize:18,cursor:'pointer',padding:'0 2px',lineHeight:1}} title="Add project to area">＋</button>
+        {areas.map(a=>{
+          const isOpen=!collapsed.has(a.id);
+          const aProjects=projects.filter(p=>p.areaId===a.id&&p.status==='active');
+          return(
+            <div key={a.id}>
+              <div style={{display:'flex',alignItems:'center',padding:'8px 4px 3px 4px',gap:2}}>
+                <button onClick={()=>toggleCollapse(a.id)} style={{background:'none',border:'none',cursor:'pointer',color:'#AEAEB2',fontSize:11,padding:'2px 4px',lineHeight:1,flexShrink:0,transition:'transform .15s',transform:isOpen?'rotate(90deg)':'rotate(0deg)'}}>▶</button>
+                <button onClick={()=>{setView(`area:${a.id}`);setTagFilter(null);setSidebarOpen(false);}}
+                  style={{flex:1,background:'none',border:'none',cursor:'pointer',textAlign:'left',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:view===`area:${a.id}`&&!tagFilter?'#4B8EF7':'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',padding:'2px 0'}}
+                >{a.name}</button>
+                <button onClick={()=>onEditArea(a.id)} style={{background:'none',border:'none',color:'#D1D1D6',fontSize:13,cursor:'pointer',padding:'2px 3px',lineHeight:1,opacity:0}} className="area-menu-btn">⋯</button>
+                <button onClick={()=>onNewProject(a.id)} style={{background:'none',border:'none',color:'#D1D1D6',fontSize:16,cursor:'pointer',padding:'2px 3px',lineHeight:1,opacity:0}} className="area-menu-btn">＋</button>
+              </div>
+              {isOpen&&aProjects.map(p=>{
+                const id=`project:${p.id}`;const active=view===id&&!tagFilter;
+                const n=tasks.filter(t=>t.projectId===p.id&&!t.done).length;
+                return(
+                  <button key={p.id} className={`nav-btn${active?' active':''}`} onClick={()=>goTo(id)} style={{background:active?`${p.color||'#4B8EF7'}18`:undefined,paddingLeft:28}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>
+                    <span className="lbl" style={{color:active?p.color||'#4B8EF7':'#1C1C1E',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:13}}>{p.title}</span>
+                    {n>0&&<span className="cnt">{n}</span>}
+                  </button>
+                );
+              })}
+              {isOpen&&aProjects.length===0&&<div style={{padding:'4px 12px 4px 28px',fontSize:11,color:'#C7C7CC',fontFamily:"'DM Mono',monospace",fontStyle:'italic'}}>No projects</div>}
             </div>
-            {projects.filter(p=>p.areaId===a.id&&p.status==='active').map(p=>{
-              const id=`project:${p.id}`;const active=view===id;
-              const n=tasks.filter(t=>t.projectId===p.id&&!t.done).length;
-              return(
-                <button key={p.id} className={`nav-btn${active?' active':''}`} onClick={()=>goTo(id)} style={{background:active?`${p.color||'#4B8EF7'}18`:undefined}}>
-                  <div style={{width:10,height:10,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>
-                  <span className="lbl" style={{color:active?p.color||'#4B8EF7':'#1C1C1E',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.title}</span>
-                  {n>0&&<span className="cnt">{n}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{padding:'8px',borderTop:'1px solid #F2F2F7'}}>
         <button onClick={()=>onNewProject(null)} className="nav-btn" style={{color:'#4B8EF7',fontSize:13}}>
@@ -1092,6 +1159,34 @@ function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEdi
           <span style={{fontSize:16}}>◻</span><span style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>New Area</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+
+// ── Today View (with This Evening) ───────────────────────────────────────────
+function TodayView({tasks,projects,onComplete,onUpdate,onDelete,onTagClick,onAddTask,areas,apiKey}){
+  const today=todayStr();
+  const todayTasks=tasks.filter(t=>t.section!=='evening');
+  const eveningTasks=tasks.filter(t=>t.section==='evening');
+  const sharedProps={projects,areas,onComplete,onUpdate,onDelete,apiKey,onTagClick};
+  return(
+    <div>
+      {todayTasks.length===0&&eveningTasks.length===0&&(
+        <div style={{textAlign:'center',padding:'48px 20px'}}>
+          <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>Nothing scheduled for today.</p>
+        </div>
+      )}
+      {todayTasks.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} showProject {...sharedProps}/>)}
+      <NewTaskRow onAdd={f=>onAddTask({...f,section:'inbox',when:today})} placeholder="Add to Today…" section="inbox" when={today}/>
+      {/* This Evening */}
+      <div style={{margin:'16px 0 0',borderTop:'1px solid #F2F2F7',padding:'14px 20px 4px',display:'flex',alignItems:'center',gap:8}}>
+        <span style={{fontSize:14}}>🌙</span>
+        <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>This Evening</span>
+      </div>
+      {eveningTasks.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} showProject {...sharedProps}/>)}
+      {eveningTasks.length===0&&<div style={{padding:'6px 20px 10px',fontSize:13,color:'#C7C7CC',fontFamily:"'Lora',serif",fontStyle:'italic'}}>Nothing planned for this evening.</div>}
+      <NewTaskRow onAdd={f=>onAddTask({...f,section:'evening',when:today})} placeholder="Add to This Evening…" section="evening" when={today}/>
     </div>
   );
 }
@@ -1130,7 +1225,7 @@ function LogbookView({tasks,projects}){
 }
 
 // ── Upcoming View ─────────────────────────────────────────────────────────────
-function UpcomingView({tasks,projects,onUpdate,onComplete,onDelete,apiKey}){
+function UpcomingView({tasks,projects,onUpdate,onComplete,onDelete,apiKey,onTagClick}){
   const upcoming=tasks.filter(t=>!t.done&&t.when&&t.when>todayStr()).sort((a,b)=>a.when.localeCompare(b.when));
   const groups={};
   upcoming.forEach(t=>{if(!groups[t.when])groups[t.when]=[];groups[t.when].push(t);});
@@ -1142,7 +1237,7 @@ function UpcomingView({tasks,projects,onUpdate,onComplete,onDelete,apiKey}){
           <div style={{padding:'16px 20px 4px',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>
             {new Date(date+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}
           </div>
-          {ts.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} projects={projects} areas={areas} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} showProject apiKey={apiKey}/>)}
+          {ts.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} projects={projects} areas={areas} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} showProject apiKey={apiKey} onTagClick={onTagClick}/>)}
         </div>
       ))}
     </div>
@@ -1160,6 +1255,9 @@ function App(){
   const [sheet,setSheet]          =useState(null);
   const [newProjectAreaId,setNewProjectAreaId]=useState(null);
   const [editAreaId,setEditAreaId]=useState(null);
+  const [tagFilter,setTagFilter]  =useState(null);
+  const [searchQuery,setSearchQuery]=useState('');
+  const [searchFocused,setSearchFocused]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [driveConnected,setDriveCon]=useState(false);
   const [syncStatus,setSyncSt]    =useState('offline');
@@ -1282,29 +1380,57 @@ function App(){
   },[tasks,view,today]);
 
   const VIEW_LABELS={inbox:'Inbox',today:'Today',upcoming:'Upcoming',anytime:'Anytime',someday:'Someday',logbook:'Logbook'};
+
+  // Search results
+  const searchResults=useMemo(()=>{
+    if(!searchQuery.trim())return null;
+    const q=searchQuery.toLowerCase();
+    return tasks.filter(t=>!t.done&&(t.title.toLowerCase().includes(q)||(t.notes||'').toLowerCase().includes(q)||(t.tags||[]).some(tag=>tag.toLowerCase().includes(q))));
+  },[tasks,searchQuery]);
+
+  // Tag filter results
+  const tagResults=useMemo(()=>{
+    if(!tagFilter)return null;
+    return tasks.filter(t=>!t.done&&(t.tags||[]).includes(tagFilter));
+  },[tasks,tagFilter]);
   const syncColor={idle:'#34C759',syncing:'#FF9500',error:'#FF3B30',offline:'#C7C7CC'}[syncStatus]||'#C7C7CC';
 
-  const sharedListProps={projects,areas,onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey};
+  const sharedListProps={projects,areas,onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey,onTagClick:setTagFilter};
 
   return(
     <div className="shell">
       {sidebarOpen&&<div className="mob-overlay" onClick={()=>setSidebarOpen(false)}/>}
       <div className={`sidebar${sidebarOpen?' open':''}`}>
         <Sidebar view={view} setView={setView} areas={areas} projects={projects} tasks={tasks}
-          onNewProject={(aId)=>{setNewProjectAreaId(aId||null);setSheet('newProject');}} onNewArea={()=>setSheet('newArea')} onEditArea={(aId)=>{setEditAreaId(aId);setSheet('editArea');}} setSidebarOpen={setSidebarOpen}
+          onNewProject={(aId)=>{setNewProjectAreaId(aId||null);setSheet('newProject');}} onNewArea={()=>setSheet('newArea')} onEditArea={(aId)=>{setEditAreaId(aId);setSheet('editArea');}} setSidebarOpen={setSidebarOpen} tagFilter={tagFilter} setTagFilter={setTagFilter}
         />
       </div>
       <div className="main">
         {/* Top bar */}
-        <div style={{background:'#fff',borderBottom:'1px solid #E5E5EA',padding:'12px 18px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <div style={{background:'#fff',borderBottom:'1px solid #E5E5EA',padding:'10px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           <button className="hamburger" onClick={()=>setSidebarOpen(v=>!v)} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#6B6B6B',padding:'2px 6px',lineHeight:1}}>☰</button>
-          <h2 style={{flex:1,margin:0,fontSize:20,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E'}}>
-            {curProj?curProj.title:VIEW_LABELS[view]||'Things'}
-          </h2>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
+          {searchQuery||searchFocused?(
+            <div style={{flex:1,display:'flex',alignItems:'center',gap:6,background:'#F2F2F7',borderRadius:9,padding:'6px 10px'}}>
+              <span style={{color:'#AEAEB2',fontSize:14}}>🔍</span>
+              <input autoFocus value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
+                onFocus={()=>setSearchFocused(true)}
+                onBlur={()=>{if(!searchQuery)setSearchFocused(false);}}
+                onKeyDown={e=>{if(e.key==='Escape'){setSearchQuery('');setSearchFocused(false);}}}
+                placeholder="Search tasks, projects…"
+                style={{flex:1,border:'none',background:'transparent',fontSize:14,fontFamily:"'Lora',serif",color:'#1C1C1E',padding:0}}
+              />
+              {searchQuery&&<span onClick={()=>{setSearchQuery('');setSearchFocused(false);}} style={{color:'#AEAEB2',cursor:'pointer',fontSize:16,lineHeight:1}}>×</span>}
+            </div>
+          ):(
+            <h2 style={{flex:1,margin:0,fontSize:20,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',cursor:'text'}} onClick={()=>setSearchFocused(true)}>
+              {tagFilter?`#${tagFilter}`:curProj?curProj.title:curArea?curArea.name:VIEW_LABELS[view]||'Things'}
+            </h2>
+          )}
+          {tagFilter&&<button onClick={()=>setTagFilter(null)} style={{background:'#EBF3FF',border:'none',borderRadius:6,padding:'4px 10px',color:'#4B8EF7',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>✕ clear</button>}
+          <div style={{display:'flex',alignItems:'center',gap:5}}>
+            {!searchQuery&&!searchFocused&&<button onClick={()=>setSearchFocused(true)} style={{background:'none',border:'none',fontSize:16,cursor:'pointer',color:'#AEAEB2',padding:'2px'}}>🔍</button>}
             <div style={{width:7,height:7,borderRadius:'50%',background:syncColor}}/>
-            {lastSync&&syncStatus==='idle'&&<span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:'#AEAEB2'}}>{lastSync}</span>}
-            {!settings.apiKey&&<span style={{fontSize:11,color:'#FF3B30',fontFamily:"'DM Mono',monospace",cursor:'pointer'}} onClick={()=>setSheet('settings')}>⚠ API key</span>}
+            {!settings.apiKey&&<span style={{fontSize:11,color:'#FF3B30',fontFamily:"'DM Mono',monospace",cursor:'pointer'}} onClick={()=>setSheet('settings')}>⚠</span>}
             <button onClick={()=>setSheet('settings')} style={{background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#AEAEB2',padding:'2px'}}>⚙</button>
           </div>
         </div>
@@ -1328,22 +1454,42 @@ function App(){
               onUpdateProject={updateProject} onDeleteProject={deleteProject}
             />
           )}
-          {!isProj&&!isArea&&(
+          {(searchResults||tagResults)&&(
+            <div style={{padding:'16px 0 100px'}}>
+              <div style={{padding:'0 20px 14px',display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>
+                  {searchResults?`${searchResults.length} result${searchResults.length!==1?'s':''}`:tagResults?`${tagResults.length} task${tagResults.length!==1?'s':''} tagged #${tagFilter}`:''}
+                </span>
+              </div>
+              {(searchResults||tagResults).map(t=>(
+                <TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} {...sharedListProps} onTagClick={setTagFilter}/>
+              ))}
+              {(searchResults||tagResults).length===0&&(
+                <div style={{textAlign:'center',padding:'48px 20px'}}>
+                  <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>No results found.</p>
+                </div>
+              )}
+            </div>
+          )}
+          {!searchResults&&!tagResults&&!isProj&&!isArea&&(
             <div style={{padding:'24px 0 100px'}}>
               <h1 style={{margin:'0 20px 18px',fontSize:28,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E'}}>{VIEW_LABELS[view]}</h1>
               {view==='logbook'&&<LogbookView tasks={tasks} projects={projects}/>}
-              {view==='upcoming'&&<UpcomingView tasks={viewTasks} projects={projects} onUpdate={updateTask} onComplete={completeTask} onDelete={deleteTask} apiKey={apiKey}/>}
-              {view!=='logbook'&&view!=='upcoming'&&(
+              {view==='upcoming'&&<UpcomingView tasks={viewTasks} projects={projects} onUpdate={updateTask} onComplete={completeTask} onDelete={deleteTask} apiKey={apiKey} onTagClick={setTagFilter}/>}
+              {view==='today'&&(
+                <TodayView tasks={viewTasks} projects={projects} {...sharedListProps} onTagClick={setTagFilter} onAddTask={addTask}/>
+              )}
+              {view!=='logbook'&&view!=='upcoming'&&view!=='today'&&(
                 <>
                   {viewTasks.length===0&&view!=='inbox'&&view!=='anytime'&&(
                     <div style={{textAlign:'center',padding:'48px 20px'}}>
                       <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>
-                        {view==='today'?'Nothing scheduled for today.':view==='someday'?'Nothing parked for someday.':'No items here.'}
+                        {view==='someday'?'Nothing parked for someday.':'No items here.'}
                       </p>
                     </div>
                   )}
                   {viewTasks.map(t=>(
-                    <TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} {...sharedListProps}/>
+                    <TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} {...sharedListProps} onTagClick={setTagFilter}/>
                   ))}
                   {(view==='inbox'||view==='anytime')&&(
                     <NewTaskRow onAdd={f=>addTask({...f,section:view})} placeholder="New To-Do" section={view}/>
