@@ -331,7 +331,7 @@ function JumpStart({task,onUpdate,onClose}){
 }
 
 // ── Task Row ──────────────────────────────────────────────────────────────────
-function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete,showProject,apiKey,onTagClick}){
+function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete,onConvertToProject,showProject,apiKey,onTagClick}){
   const [expanded,setExpanded]=useState(false);
   const [completing,setCompleting]=useState(false);
   const [showJS,setShowJS]=useState(false);
@@ -341,6 +341,8 @@ function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete
   const [tagInput,setTagInput]=useState(false);
   const [clItem,setClItem]=useState('');
   const [aiLoading,setAiLoading]=useState(false);
+  const taskRef=useRef(task);
+  useEffect(()=>{taskRef.current=task;},[task]);
   const color=project?.color||'#4B8EF7';
   const dl=task.deadline,wh=task.when;
   const late=dl&&dl<todayStr()&&!task.done;
@@ -351,16 +353,19 @@ function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete
     setCompleting(true);
     setTimeout(()=>{onComplete(task.id);setCompleting(false);},360);
   };
-  const save=()=>onUpdate({...task,title,notes});
-  const updCl=items=>onUpdate({...task,checklist:items});
-  const addCl=()=>{
+  const save=()=>onUpdate({...taskRef.current,title,notes});
+  // Always use taskRef.current so we have the freshest checklist
+  const updCl=items=>onUpdate({...taskRef.current,checklist:items});
+  const addCl=(e)=>{
+    if(e){e.preventDefault();e.stopPropagation();}
     if(!clItem.trim())return;
-    updCl([...(task.checklist||[]),{id:uid(),text:clItem.trim(),done:false}]);
+    const current=taskRef.current.checklist||[];
+    updCl([...current,{id:uid(),text:clItem.trim(),done:false}]);
     setClItem('');
   };
   const addTag=()=>{
     if(!newTag.trim())return;
-    onUpdate({...task,tags:[...(task.tags||[]),newTag.trim().replace(/^#/,'')]});
+    onUpdate({...taskRef.current,tags:[...(taskRef.current.tags||[]),newTag.trim().replace(/^#/,'')]});
     setNewTag('');setTagInput(false);
   };
   const suggestCl=async()=>{
@@ -369,7 +374,7 @@ function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete
     try{
       const items=await aiSuggestChecklist(apiKey,task.title);
       const newItems=items.map(t=>({id:uid(),text:t,done:false}));
-      updCl([...(task.checklist||[]),...newItems]);
+      updCl([...(taskRef.current.checklist||[]),...newItems]);
     }catch(e){alert('Could not generate checklist: '+e.message);}
     setAiLoading(false);
   };
@@ -468,17 +473,19 @@ function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete
           {/* Add checklist */}
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
             <input value={clItem} onChange={e=>setClItem(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&addCl()}
+              onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();addCl();}}}
+              onClick={e=>e.stopPropagation()}
               placeholder="Add checklist item…"
-              style={{flex:1,border:'none',background:'transparent',fontSize:12,fontFamily:"'Lora',serif",color:'#6B6B6B',padding:0}}
+              style={{flex:1,border:'none',background:'transparent',fontSize:12,fontFamily:"'Lora',serif",color:'#6B6B6B',padding:0,outline:'none'}}
             />
-            {clItem&&<button onClick={addCl} style={{background:'#4B8EF7',border:'none',borderRadius:4,padding:'3px 8px',color:'#fff',fontSize:11,cursor:'pointer'}}>Add</button>}
+            {clItem&&<button onClick={e=>{e.preventDefault();e.stopPropagation();addCl();}} style={{background:'#4B8EF7',border:'none',borderRadius:4,padding:'3px 8px',color:'#fff',fontSize:11,cursor:'pointer'}}>Add</button>}
             <button onClick={suggestCl} disabled={aiLoading} style={{background:'none',border:'1px solid #E5E5EA',borderRadius:7,padding:'3px 10px',fontSize:10,fontFamily:"'DM Mono',monospace",color:'#4B8EF7',cursor:'pointer'}}>
               {aiLoading?'…':'✦ AI suggest'}
             </button>
           </div>
           {/* Actions */}
-          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            {onConvertToProject&&<button onClick={()=>onConvertToProject(task)} style={{background:'none',border:'1px solid #E5E5EA',borderRadius:6,padding:'4px 10px',color:'#7c3aed',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer',marginRight:'auto'}}>📁 Convert to project</button>}
             <button onClick={()=>onDelete(task.id)} style={{background:'none',border:'none',color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Delete</button>
             <button onClick={()=>setExpanded(false)} style={{background:'none',border:'1px solid #E5E5EA',borderRadius:6,padding:'4px 14px',color:'#6B6B6B',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Done</button>
           </div>
@@ -541,7 +548,7 @@ function HeadingRow({heading,onUpdate}){
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
-function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask,onCompleteTask,onDeleteTask,onAddHeading,onUpdateHeading,onUpdateProject,onDeleteProject}){
+function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask,onCompleteTask,onDeleteTask,onAddHeading,onUpdateHeading,onUpdateProject,onDeleteProject,autoEdit=false,onAutoEditDone}){
   const area=areas.find(a=>a.id===project.areaId);
   const active=tasks.filter(t=>t.projectId===project.id&&!t.done);
   const done=tasks.filter(t=>t.projectId===project.id&&t.done);
@@ -549,10 +556,11 @@ function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask
   const progress=total>0?Math.round((done.length/total)*100):0;
   const noHead=active.filter(t=>!t.headingId);
   const groups=headings.map(h=>({h,tasks:active.filter(t=>t.headingId===h.id)}));
-  const sharedProps={project,projects,areas,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey,onTagClick:null};
+  const sharedProps={project,projects,areas,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey,onTagClick:null,onConvertToProject:null};
 
-  const [showEdit,setShowEdit]=useState(false);
+  const [showEdit,setShowEdit]=useState(autoEdit);
   const [notes,setNotes]=useState(project.notes||'');
+  useEffect(()=>{if(autoEdit){setShowEdit(true);onAutoEditDone&&onAutoEditDone();}},[]);
   const saveNotes=()=>{if(notes!==project.notes)onUpdateProject({...project,notes});};
   return(
     <div>
@@ -1255,6 +1263,7 @@ function App(){
   const [sheet,setSheet]          =useState(null);
   const [newProjectAreaId,setNewProjectAreaId]=useState(null);
   const [editAreaId,setEditAreaId]=useState(null);
+  const [newProjectForConvert,setNewProjectForConvert]=useState(null);
   const [tagFilter,setTagFilter]  =useState(null);
   const [searchQuery,setSearchQuery]=useState('');
   const [searchFocused,setSearchFocused]=useState(false);
@@ -1356,6 +1365,16 @@ function App(){
     setView('inbox');
   };
   const addHeading=projectId=>{setHeadings(hs=>[...hs,{id:uid(),projectId,title:'New Heading',createdAt:new Date().toISOString()}]);};
+  const convertToProject=task=>{
+    // Create a new project from the task
+    const p={id:uid(),title:task.title,areaId:null,color:COLORS[0],notes:task.notes||'',status:'active',createdAt:new Date().toISOString()};
+    setProjects(ps=>[...ps,p]);
+    // Remove the original task (it becomes the project itself)
+    setTasks(ts=>ts.filter(t=>t.id!==task.id));
+    // Navigate to the new project and open edit sheet to let user pick area
+    setView(`project:${p.id}`);
+    setNewProjectForConvert(p.id);
+  };
 
   // ── View logic ──
   const today=todayStr();
@@ -1395,7 +1414,7 @@ function App(){
   },[tasks,tagFilter]);
   const syncColor={idle:'#34C759',syncing:'#FF9500',error:'#FF3B30',offline:'#C7C7CC'}[syncStatus]||'#C7C7CC';
 
-  const sharedListProps={projects,areas,onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey,onTagClick:setTagFilter};
+  const sharedListProps={projects,areas,onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey,onTagClick:setTagFilter,onConvertToProject:convertToProject};
 
   return(
     <div className="shell">
@@ -1443,6 +1462,8 @@ function App(){
               onAddTask={addTask} onUpdateTask={updateTask} onCompleteTask={completeTask} onDeleteTask={deleteTask}
               onAddHeading={addHeading} onUpdateHeading={h=>setHeadings(hs=>hs.map(x=>x.id===h.id?h:x))}
               onUpdateProject={updateProject} onDeleteProject={deleteProject}
+              autoEdit={newProjectForConvert===projId}
+              onAutoEditDone={()=>setNewProjectForConvert(null)}
             />
           )}
           {isArea&&curArea&&(
