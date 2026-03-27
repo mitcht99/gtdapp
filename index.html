@@ -128,7 +128,13 @@ async function ai(apiKey,messages,system,max=1200){
     body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:max,system,messages}),
   });
   const d=await r.json();
-  if(d.error)throw new Error(d.error.message);
+  if(d.error){
+    const msg=d.error.message||'';
+    if(d.error.type==='overloaded_error'||msg.toLowerCase().includes('overload'))throw new Error('API is busy — wait a moment and try again.');
+    if(d.error.type==='authentication_error')throw new Error('Invalid API key — check Settings.');
+    if(d.error.type==='rate_limit_error')throw new Error('Rate limit hit — wait a few seconds.');
+    throw new Error(msg||'API error — try again.');
+  }
   return d.content?.find(b=>b.type==='text')?.text||'';
 }
 
@@ -522,7 +528,7 @@ function AIPlanner({apiKey,projectTitle,onAccept,onClose}){
                 placeholder={`Describe the project goal and any context...\n\ne.g. "Redesign the company website. Need new homepage, about page, and contact form. Working with an external developer."`}
                 rows={6} style={{resize:'none',lineHeight:1.75,marginBottom:12}}
               />
-              {err&&<p style={{color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",marginBottom:10}}>{err}</p>}
+              {err&&<div style={{display:'flex',alignItems:'center',gap:8,background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:8,padding:'9px 12px',marginBottom:10}}><span style={{fontSize:12,color:'#FF3B30',fontFamily:"'DM Mono',monospace",flex:1}}>{err}</span><span onClick={()=>setErr('')} style={{color:'#FFAAAA',cursor:'pointer',fontSize:16,lineHeight:1}}>×</span></div>}
               <button onClick={run} disabled={!desc.trim()||busy} className="btn-primary" style={{background:desc.trim()&&!busy?'#4B8EF7':undefined,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
                 {busy?<><span style={{animation:'spin 1s linear infinite',display:'inline-block',fontSize:16}}>✦</span>Planning…</>:'Generate plan →'}
               </button>
@@ -692,9 +698,9 @@ function BrainDump({apiKey,onSaveAll,onClose}){
                 placeholder={"Write everything on your mind — stream of consciousness, no structure needed.\n\nNeed to call the accountant. Idea for automating reports. Pick up dry cleaning today. Reply to Sarah asap."}
                 rows={9} className="inp" style={{resize:'none',lineHeight:1.75,marginBottom:12}}
               />
-              {err&&<p style={{color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",marginBottom:10}}>{err}</p>}
+              {err&&<div style={{display:'flex',alignItems:'center',gap:8,background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:8,padding:'9px 12px',marginBottom:10}}><span style={{fontSize:12,color:'#FF3B30',fontFamily:"'DM Mono',monospace",flex:1}}>{err}</span><span onClick={()=>setErr('')} style={{color:'#FFAAAA',cursor:'pointer',fontSize:16,lineHeight:1}}>×</span></div>}
               <button onClick={extract} disabled={!text.trim()||busy} className="btn-primary" style={{background:text.trim()&&!busy?'#1C1C1E':undefined,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                {busy?<><span style={{animation:'spin 1s linear infinite',display:'inline-block',fontSize:16}}>✦</span>Extracting…</>:'Extract items →'}
+                {busy?<><span style={{animation:'spin 1s linear infinite',display:'inline-block',fontSize:16}}>✦</span>Extracting…</>:err?'Retry →':'Extract items →'}
               </button>
             </>
           )}
