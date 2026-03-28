@@ -1,1572 +1,895 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<title>Things</title>
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTD Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --accent:#4B8EF7; --accent-soft:#EBF3FF;
-  --green:#34C759; --red:#FF3B30; --orange:#FF9500;
-  --bg:#F2F2F7; --surface:#FFFFFF;
-  --text:#1C1C1E; --text2:#6B6B6B; --text3:#AEAEB2;
-  --border:#E5E5EA; --radius:10px;
-  --sw:240px;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg-root:#ffffff;--bg-surface:#f7f6f3;--bg-elevated:#efeee9;--bg-hover:#f0efeb;
+--bg-active:#e8e7e2;--bg-accent:#9a6b34;--bg-accent-dim:rgba(154,107,52,.08);
+--text-primary:#1a1918;--text-secondary:#6b6a64;--text-tertiary:#9c9a92;
+--text-accent:#9a6b34;--text-on-accent:#ffffff;
+--border:#e3e2dd;--border-hover:#cccbc5;
+--red:#b94444;--green:#4d8230;--blue:#3670a8;--purple:#6b5eac;
+--red-dim:rgba(185,68,68,.08);--green-dim:rgba(77,130,48,.08);
+--blue-dim:rgba(54,112,168,.08);--purple-dim:rgba(107,94,172,.08);
+--font-sans:'DM Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;
+--sidebar-w:240px;--transition:150ms ease;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;background:var(--bg);font-family:'Lora',serif;}
-body{-webkit-font-smoothing:antialiased;}
-::-webkit-scrollbar{width:4px;}
-::-webkit-scrollbar-thumb{background:#D1D1D6;border-radius:2px;}
-textarea,input{font-family:inherit;}
-textarea:focus,input:focus{outline:none;}
-textarea::placeholder,input::placeholder{color:var(--text3);}
-button{font-family:'DM Mono',monospace;cursor:pointer;border:none;}
-input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;}
-
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes checkPop{0%{transform:scale(1)}40%{transform:scale(1.25)}70%{transform:scale(.9)}100%{transform:scale(1)}}
-@keyframes taskOut{0%{opacity:1;max-height:80px;transform:translateX(0)}60%{opacity:.2;transform:translateX(6px)}100%{opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;overflow:hidden}}
-.area-menu-btn{transition:opacity .15s;}
-div:hover>.area-menu-btn, div:hover > div > .area-menu-btn{opacity:1!important;}
-
-.fade{animation:fadeIn .18s ease;}
-.sheet{animation:slideUp .28s cubic-bezier(.34,1.56,.64,1);}
-
-/* Layout */
-.shell{display:flex;height:100vh;overflow:hidden;}
-.sidebar{width:var(--sw);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:10;transition:transform .25s ease;overflow-y:auto;}
-.main{flex:1;margin-left:var(--sw);display:flex;flex-direction:column;overflow:hidden;transition:margin .25s ease;}
-@media(max-width:660px){
-  .sidebar{transform:translateX(calc(-1 * var(--sw)));}
-  .sidebar.open{transform:translateX(0);}
-  .main{margin-left:0;}
-  .mob-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:9;animation:fadeIn .18s ease;}
-}
-@media(min-width:661px){.hamburger{display:none!important;}}
-
-/* Sidebar items */
-.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;text-align:left;transition:background .1s;}
-.nav-btn:hover{background:var(--bg);}
-.nav-btn.active{background:var(--accent-soft);}
-.nav-btn .lbl{flex:1;font-size:14px;font-family:'Lora',serif;}
-.nav-btn.active .lbl{color:var(--accent);}
-.nav-btn .cnt{font-size:11px;font-family:'DM Mono',monospace;color:var(--text3);font-weight:600;}
-.nav-btn.active .cnt{color:var(--accent);}
-
-/* Task rows */
-.task-row{display:flex;align-items:flex-start;gap:12px;padding:8px 16px;cursor:pointer;border-radius:8px;transition:background .1s;}
-.task-row:hover{background:#FAFAFA;}
-.task-completing{animation:taskOut .38s ease forwards;}
-
-/* Sheets / overlays */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:100;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .18s ease;}
-.sheet-box{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}
-.handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:14px auto 0;flex-shrink:0;}
-.sh-hdr{padding:14px 20px 12px;border-bottom:1px solid #F2F2F7;flex-shrink:0;}
-.sh-body{flex:1;overflow-y:auto;padding:18px 20px;-webkit-overflow-scrolling:touch;}
-.sh-foot{padding:10px 20px 32px;border-top:1px solid #F2F2F7;flex-shrink:0;}
-
-/* Inputs */
-.inp{width:100%;border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;font-size:15px;color:var(--text);background:#FAFAFA;}
-.inp:focus{border-color:#9CA3AF;background:#fff;}
-
-/* Mini buttons */
-.mini-btn{background:#F2F2F7;border:none;border-radius:5px;width:24px;height:24px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-
-/* Primary button */
-.btn-primary{background:var(--accent);border:none;border-radius:var(--radius);padding:12px;color:#fff;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;width:100%;}
-.btn-primary:disabled{background:var(--bg);color:var(--text3);cursor:default;}
-.btn-ghost{background:var(--bg);border:none;border-radius:var(--radius);padding:12px;color:var(--text2);font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;}
-
-/* FAB */
-.fab{height:48px;border-radius:24px;border:none;color:#fff;font-size:12px;font-family:'DM Mono',monospace;font-weight:500;letter-spacing:.04em;box-shadow:0 4px 16px rgba(0,0,0,.15);cursor:pointer;display:flex;align-items:center;gap:7px;padding:0 18px;white-space:nowrap;transition:transform .12s;}
-.fab:active{transform:scale(.96);}
+html{font-size:14px}
+body{font-family:var(--font-sans);background:var(--bg-root);color:var(--text-primary);
+line-height:1.5;overflow:hidden;height:100vh}
+input,button,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg-elevated);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-hover)}
 </style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const {useState,useEffect,useRef,useCallback,useMemo}=React;
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script type="text/babel" data-type="module">
+const {useState,useEffect,useCallback,useMemo,useRef,createContext,useContext} = React;
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const SK={tasks:'th3_t',projects:'th3_p',areas:'th3_a',headings:'th3_h',settings:'th3_s'};
-const DRIVE_FILE='things-app-v1.json';
-const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
-const COLORS=['#4B8EF7','#FF6B6B','#FF9500','#34C759','#AF52DE','#00C7BE','#FF2D55','#5856D6','#8E8E93','#FF6E40'];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-const todayStr=()=>new Date().toISOString().slice(0,10);
-const addDays=n=>{const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
-const fmtDate=iso=>{
-  if(!iso)return'';
-  const d=new Date(iso+'T00:00:00'),t=new Date(todayStr()+'T00:00:00');
-  const diff=Math.round((d-t)/86400000);
-  if(diff===0)return'Today';if(diff===1)return'Tomorrow';if(diff===-1)return'Yesterday';
-  if(diff<0)return`${Math.abs(diff)}d overdue`;
-  if(diff<7)return d.toLocaleDateString('en-GB',{weekday:'long'});
-  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-};
-const isOverdue=iso=>iso&&iso<todayStr();
-const ls={
-  get:(k,fb)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch{return fb;}},
-  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
-};
-
-// ── Claude API ────────────────────────────────────────────────────────────────
-async function ai(apiKey,messages,system,max=1200){
-  const r=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:max,system,messages}),
-  });
-  const d=await r.json();
-  if(d.error){
-    const msg=d.error.message||'';
-    if(d.error.type==='overloaded_error'||msg.toLowerCase().includes('overload'))throw new Error('API is busy — wait a moment and try again.');
-    if(d.error.type==='authentication_error')throw new Error('Invalid API key — check Settings.');
-    if(d.error.type==='rate_limit_error')throw new Error('Rate limit hit — wait a few seconds.');
-    throw new Error(msg||'API error — try again.');
-  }
-  return d.content?.find(b=>b.type==='text')?.text||'';
-}
-
-async function planProject(apiKey,title,description){
-  const raw=await ai(apiKey,
-    [{role:'user',content:`Project: "${title}"\n\n${description}`}],
-    `Break this project into actionable tasks. Return ONLY a JSON array, no markdown:
-[{"heading":string|null,"tasks":["Task title",...]}]
-- Use heading:null for ungrouped tasks
-- Max 3 sections, 6 tasks each. Tasks must be specific and actionable.
-- Planning tasks are valid: "Research options", "Draft plan", "Define requirements"`,1400);
-  return JSON.parse(raw.replace(/```json|```/g,'').trim());
-}
-
-async function aiSuggestChecklist(apiKey,taskTitle){
-  const raw=await ai(apiKey,
-    [{role:'user',content:`Task: "${taskTitle}"`}],
-    'Suggest 3-5 checklist sub-steps for this task. Return ONLY a JSON array of short strings. No markdown.',400);
-  return JSON.parse(raw.replace(/```json|```/g,'').trim());
-}
-
-async function parseDump(apiKey,text){
-  const raw=await ai(apiKey,
-    [{role:'user',content:text}],
-    `Extract items from a brain dump. Today is ${todayStr()}.
-Return ONLY a JSON array, no markdown:
-[{"title":string,"section":"inbox"|"anytime"|"someday","when":"YYYY-MM-DD"|null,"indent":0|1}]
-indent 1 = sub-item of previous item. when = only if urgency clearly implied.`,1400);
-  return JSON.parse(raw.replace(/```json|```/g,'').trim());
-}
-
-// ── Google Drive ──────────────────────────────────────────────────────────────
-let tokenClient=null,gToken=null,driveFileId=null;
-async function driveReq(m,url,body){
-  const h={Authorization:`Bearer ${gToken}`};
-  if(body&&!(body instanceof FormData))h['Content-Type']='application/json';
-  const r=await fetch(url,{method:m,headers:h,body:body?(body instanceof FormData?body:JSON.stringify(body)):undefined});
-  if(!r.ok){const e=await r.json().catch(()=>{});throw new Error(e?.error?.message||`HTTP ${r.status}`);}
-  return r.headers.get('content-type')?.includes('json')?r.json():r.text();
-}
-async function loadFromDrive(){
-  const q=encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
-  const d=await driveReq('GET',`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`);
-  const id=d.files?.[0]?.id;if(!id)return null;driveFileId=id;
-  const t=await driveReq('GET',`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
-  return JSON.parse(typeof t==='string'?t:JSON.stringify(t));
-}
-async function saveToDrive(data){
-  const content=JSON.stringify(data),meta={name:DRIVE_FILE,mimeType:'application/json'};
-  const form=new FormData();
-  form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
-  form.append('file',new Blob([content],{type:'application/json'}));
-  const url=driveFileId
-    ?`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`
-    :'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-  const r=await fetch(url,{method:driveFileId?'PATCH':'POST',headers:{Authorization:`Bearer ${gToken}`},body:form});
-  if(!r.ok)throw new Error('Drive save failed');
-  if(!driveFileId){const c=await r.json();driveFileId=c.id;}
-}
-
-// ── Checkbox ──────────────────────────────────────────────────────────────────
-function Checkbox({done,color='#4B8EF7',onToggle}){
-  const [pop,setPop]=useState(false);
-  const handle=e=>{
-    e.stopPropagation();
-    if(!done){setPop(true);setTimeout(()=>setPop(false),400);}
-    onToggle();
-  };
-  return(
-    <div onClick={handle} style={{
-      width:22,height:22,borderRadius:'50%',flexShrink:0,marginTop:1,
-      border:`2px solid ${done?color:'#C7C7CC'}`,
-      background:done?color:'transparent',
-      display:'flex',alignItems:'center',justifyContent:'center',
-      cursor:'pointer',transition:'border-color .15s,background .15s',
-      animation:pop?'checkPop .4s ease':undefined,
-    }}>
-      {done&&<svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1,5 4.5,8.5 11,1" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-    </div>
-  );
-}
-
-// ── Checklist Item ────────────────────────────────────────────────────────────
-function CItem({item,onChange,onDelete}){
-  return(
-    <div style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
-      <div onClick={()=>onChange({...item,done:!item.done})} style={{
-        width:16,height:16,borderRadius:3,flexShrink:0,cursor:'pointer',
-        border:`1.5px solid ${item.done?'#4B8EF7':'#C7C7CC'}`,
-        background:item.done?'#4B8EF7':'transparent',
-        display:'flex',alignItems:'center',justifyContent:'center',
-      }}>
-        {item.done&&<svg width="9" height="7" viewBox="0 0 10 8"><polyline points="1,4 3.5,6.5 9,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-      </div>
-      <input value={item.text} onChange={e=>onChange({...item,text:e.target.value})}
-        style={{flex:1,border:'none',background:'transparent',fontSize:13,fontFamily:"'Lora',serif",color:item.done?'#AEAEB2':'#1C1C1E',textDecoration:item.done?'line-through':'none',padding:0}}
-      />
-      <button onClick={onDelete} style={{background:'none',border:'none',color:'#C7C7CC',cursor:'pointer',fontSize:16,lineHeight:1,padding:0}}>×</button>
-    </div>
-  );
-}
-
-// ── Move Task Picker ─────────────────────────────────────────────────────────
-function MoveTaskPicker({task,projects,areas,onUpdate}){
-  const [open,setOpen]=useState(false);
-  const curProject=projects.find(p=>p.id===task.projectId);
-  return(
-    <div style={{marginBottom:12,position:'relative'}}>
-      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,background:'#F2F2F7',border:'none',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#6B6B6B'}}>
-        {curProject?<><div style={{width:8,height:8,borderRadius:'50%',background:curProject.color||'#4B8EF7'}}/>{curProject.title}</>:<span>No project</span>}
-        <span style={{color:'#AEAEB2',fontSize:10,marginLeft:2}}>▾</span>
-      </button>
-      {open&&(
-        <div style={{position:'absolute',top:36,left:0,background:'#fff',border:'1px solid #E5E5EA',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,.1)',zIndex:200,minWidth:200,maxHeight:260,overflowY:'auto'}} className="fade">
-          <button onClick={()=>{onUpdate({...task,projectId:null,headingId:null,section:'inbox'});setOpen(false);}}
-            style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',background:'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#6B6B6B',cursor:'pointer',textAlign:'left'}}
-            onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}
-          >
-            <span>📥</span> Inbox (no project)
-          </button>
-          {/* Standalone projects */}
-          {projects.filter(p=>!p.areaId&&p.status==="active").map(p=>(
-            <button key={p.id} onClick={()=>{onUpdate({...task,projectId:p.id,headingId:null,section:'anytime'});setOpen(false);}}
-              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',background:task.projectId===p.id?'#EBF3FF':'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#1C1C1E',cursor:'pointer',textAlign:'left'}}
-              onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
-              onMouseLeave={e=>e.currentTarget.style.background=task.projectId===p.id?'#EBF3FF':'none'}
-            >
-              <div style={{width:8,height:8,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>{p.title}
-              {task.projectId===p.id&&<span style={{marginLeft:'auto',color:'#4B8EF7',fontSize:14}}>✓</span>}
-            </button>
-          ))}
-          {/* Projects grouped by area */}
-          {areas.map(a=>{
-            const aProjs=projects.filter(p=>p.areaId===a.id&&p.status==="active");
-            if(!aProjs.length)return null;
-            return(
-              <div key={a.id}>
-                <div style={{padding:'8px 14px 4px',fontSize:10,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>{a.name}</div>
-                {aProjs.map(p=>(
-                  <button key={p.id} onClick={()=>{onUpdate({...task,projectId:p.id,headingId:null,section:'anytime'});setOpen(false);}}
-                    style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 14px',background:task.projectId===p.id?'#EBF3FF':'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#1C1C1E',cursor:'pointer',textAlign:'left'}}
-                    onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
-                    onMouseLeave={e=>e.currentTarget.style.background=task.projectId===p.id?'#EBF3FF':'none'}
-                  >
-                    <div style={{width:8,height:8,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>{p.title}
-                    {task.projectId===p.id&&<span style={{marginLeft:'auto',color:'#4B8EF7',fontSize:14}}>✓</span>}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ── Jump Start Popover ────────────────────────────────────────────────────────
-function JumpStart({task,onUpdate,onClose}){
-  const today=todayStr();
-  const [customDate,setCustomDate]=useState('');
-  const options=[
-    {label:'Today',      icon:'⭐', action:()=>onUpdate({...task,when:today,section:task.section==='someday'?'anytime':task.section})},
-    {label:'This Evening',icon:'🌙',action:()=>onUpdate({...task,when:today,section:'evening'})},
-    {label:'Tomorrow',   icon:'☀️',action:()=>onUpdate({...task,when:addDays(1),section:task.section==='someday'?'anytime':task.section})},
-    {label:'Next Week',  icon:'📅', action:()=>onUpdate({...task,when:addDays(7),section:task.section==='someday'?'anytime':task.section})},
-    {label:'Someday',    icon:'☁️',action:()=>onUpdate({...task,when:null,section:'someday'})},
-    {label:'No Date',    icon:'✕',  action:()=>onUpdate({...task,when:null,section:task.section==='someday'?'anytime':task.section})},
-  ];
-  return(
-    <div style={{position:'absolute',top:32,left:0,zIndex:300,background:'#fff',border:'1px solid #E5E5EA',borderRadius:12,boxShadow:'0 8px 28px rgba(0,0,0,.13)',minWidth:190,overflow:'hidden'}} className="fade" onClick={e=>e.stopPropagation()}>
-      {options.map(o=>(
-        <button key={o.label} onClick={()=>{o.action();onClose();}}
-          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'none',border:'none',borderBottom:'1px solid #F2F2F7',fontSize:13,fontFamily:"'Lora',serif",color:'#1C1C1E',cursor:'pointer',textAlign:'left'}}
-          onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
-          onMouseLeave={e=>e.currentTarget.style.background='none'}
-        >
-          <span style={{fontSize:15,width:20,textAlign:'center'}}>{o.icon}</span>{o.label}
-        </button>
-      ))}
-      <div style={{padding:'8px 10px',borderTop:'1px solid #F2F2F7',display:'flex',gap:6,alignItems:'center'}}>
-        <input type="date" value={customDate} onChange={e=>setCustomDate(e.target.value)}
-          style={{flex:1,border:'1px solid #E5E5EA',borderRadius:6,padding:'5px 8px',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#1C1C1E'}}
-        />
-        {customDate&&<button onClick={()=>{onUpdate({...task,when:customDate,section:task.section==='someday'?'anytime':task.section});onClose();}}
-          style={{background:'#4B8EF7',border:'none',borderRadius:6,padding:'5px 10px',color:'#fff',fontSize:11,cursor:'pointer'}}>Set</button>}
-      </div>
-    </div>
-  );
-}
-
-// ── Task Row ──────────────────────────────────────────────────────────────────
-function TaskRow({task,project,projects=[],areas=[],onComplete,onUpdate,onDelete,onConvertToProject,showProject,apiKey,onTagClick}){
-  const [expanded,setExpanded]=useState(false);
-  const [completing,setCompleting]=useState(false);
-  const [showJS,setShowJS]=useState(false);
-  const [title,setTitle]=useState(task.title);
-  const [notes,setNotes]=useState(task.notes||'');
-  const [newTag,setNewTag]=useState('');
-  const [tagInput,setTagInput]=useState(false);
-  const [clItem,setClItem]=useState('');
-  const [aiLoading,setAiLoading]=useState(false);
-  const taskRef=useRef(task);
-  useEffect(()=>{taskRef.current=task;},[task]);
-  const color=project?.color||'#4B8EF7';
-  const dl=task.deadline,wh=task.when;
-  const late=dl&&dl<todayStr()&&!task.done;
-  const clDone=(task.checklist||[]).filter(c=>c.done).length;
-  const clTotal=(task.checklist||[]).length;
-
-  const handleCheck=()=>{
-    setCompleting(true);
-    setTimeout(()=>{onComplete(task.id);setCompleting(false);},360);
-  };
-  const save=()=>onUpdate({...taskRef.current,title,notes});
-  // Always use taskRef.current so we have the freshest checklist
-  const updCl=items=>onUpdate({...taskRef.current,checklist:items});
-  const addCl=(e)=>{
-    if(e){e.preventDefault();e.stopPropagation();}
-    if(!clItem.trim())return;
-    const current=taskRef.current.checklist||[];
-    updCl([...current,{id:uid(),text:clItem.trim(),done:false}]);
-    setClItem('');
-  };
-  const addTag=()=>{
-    if(!newTag.trim())return;
-    onUpdate({...taskRef.current,tags:[...(taskRef.current.tags||[]),newTag.trim().replace(/^#/,'')]});
-    setNewTag('');setTagInput(false);
-  };
-  const suggestCl=async()=>{
-    if(!apiKey){alert('Add API key in Settings first.');return;}
-    setAiLoading(true);
-    try{
-      const items=await aiSuggestChecklist(apiKey,task.title);
-      const newItems=items.map(t=>({id:uid(),text:t,done:false}));
-      updCl([...(taskRef.current.checklist||[]),...newItems]);
-    }catch(e){alert('Could not generate checklist: '+e.message);}
-    setAiLoading(false);
-  };
-
-  return(
-    <div className={completing?'task-completing':''} style={{overflow:'hidden'}}>
-      {/* Main row */}
-      <div className="task-row" onClick={()=>{setExpanded(e=>!e);setTitle(task.title);setNotes(task.notes||'');}}>
-        <div style={{paddingTop:1}} onClick={e=>{e.stopPropagation();handleCheck();}}>
-          <Checkbox done={task.done} color={color}/>
-        </div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:15,color:task.done?'#AEAEB2':'#1C1C1E',fontFamily:"'Lora',serif",lineHeight:1.4,textDecoration:task.done?'line-through':'none'}}>{task.title}</div>
-          {!expanded&&(
-            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2,flexWrap:'wrap'}}>
-              {showProject&&project&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:project.color||'#4B8EF7',fontWeight:500}}>{project.title}</span>}
-              {wh&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:isOverdue(wh)?'#FF3B30':'#FF9500'}}>{fmtDate(wh)}</span>}
-              {dl&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:late?'#FF3B30':'#6B6B6B'}}>⚑ {fmtDate(dl)}</span>}
-              {clTotal>0&&<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2'}}>{clDone}/{clTotal}</span>}
-              {(task.tags||[]).map(t=><span key={t} onClick={e=>{e.stopPropagation();onTagClick&&onTagClick(t);}} style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:'#4B8EF7',cursor:'pointer'}}>#{t}</span>)}
-            </div>
-          )}
-        </div>
-        <div style={{position:'relative',flexShrink:0}}>
-          <button onClick={e=>{e.stopPropagation();setShowJS(s=>!s);}} style={{background:'none',border:'none',cursor:'pointer',color:task.when?'#FF9500':'#D1D1D6',fontSize:13,padding:'2px 4px',lineHeight:1}} title="Schedule">
-            {task.when?fmtDate(task.when).slice(0,3):'📅'}
-          </button>
-          {showJS&&<><div style={{position:'fixed',inset:0,zIndex:299}} onClick={()=>setShowJS(false)}/><JumpStart task={task} onUpdate={onUpdate} onClose={()=>setShowJS(false)}/></>}
-        </div>
-        <div style={{fontSize:13,color:'#D1D1D6',paddingTop:2,flexShrink:0}}>{expanded?'▲':'▾'}</div>
-      </div>
-
-      {/* Expanded editor */}
-      {expanded&&(
-        <div style={{padding:'4px 16px 14px 50px',background:'#FAFAFA',borderBottom:'1px solid #F2F2F7'}} onClick={e=>e.stopPropagation()}>
-          <input value={title} onChange={e=>setTitle(e.target.value)} onBlur={save} autoFocus
-            style={{width:'100%',border:'none',background:'transparent',fontSize:15,fontFamily:"'Lora',serif",color:'#1C1C1E',padding:0,marginBottom:6}}
-          />
-          <textarea value={notes} onChange={e=>setNotes(e.target.value)} onBlur={save}
-            placeholder="Notes…" rows={2}
-            style={{width:'100%',border:'none',background:'transparent',fontSize:13,fontFamily:"'Lora',serif",color:'#6B6B6B',resize:'none',padding:0,marginBottom:12}}
-          />
-          {/* Dates */}
-          <div style={{display:'flex',gap:16,marginBottom:12,flexWrap:'wrap'}}>
-            {[{label:'When',key:'when'},{label:'Deadline',key:'deadline'}].map(({label,key})=>(
-              <label key={key} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontFamily:"'DM Mono',monospace",color:'#6B6B6B'}}>
-                {label}
-                <input type="date" value={task[key]||''} onChange={e=>onUpdate({...task,[key]:e.target.value||null})}
-                  style={{border:'1px solid #E5E5EA',borderRadius:6,padding:'3px 8px',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#1C1C1E'}}
-                />
-                {task[key]&&<span onClick={()=>onUpdate({...task,[key]:null})} style={{cursor:'pointer',color:'#AEAEB2',fontSize:16,lineHeight:1}}>×</span>}
-              </label>
-            ))}
-          </div>
-          {/* Section */}
-          <div style={{display:'flex',gap:5,marginBottom:12,flexWrap:'wrap'}}>
-            {['inbox','anytime','someday'].map(s=>(
-              <button key={s} onClick={()=>onUpdate({...task,section:s})}
-                style={{background:task.section===s?'#EBF3FF':'#F2F2F7',border:`1px solid ${task.section===s?'#4B8EF7':'transparent'}`,borderRadius:7,padding:'4px 10px',fontSize:10,fontFamily:"'DM Mono',monospace",color:task.section===s?'#4B8EF7':'#6B6B6B',cursor:'pointer',textTransform:'uppercase',letterSpacing:'.05em'}}
-              >{s}</button>
-            ))}
-          </div>
-          {/* Move to project */}
-          <MoveTaskPicker task={task} projects={projects} areas={areas} onUpdate={onUpdate}/>
-          {/* Tags */}
-          <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:12,flexWrap:'wrap'}}>
-            {(task.tags||[]).map(t=>(
-              <span key={t} style={{display:'inline-flex',alignItems:'center',gap:3,background:'#EBF3FF',color:'#4B8EF7',border:'1px solid #c3d7f7',borderRadius:12,padding:'2px 8px',fontSize:11,fontFamily:"'DM Mono',monospace"}}>
-                #{t}
-                <span onClick={e=>{e.stopPropagation();onTagClick&&onTagClick(t);}} style={{cursor:'pointer',opacity:.8,lineHeight:1,fontSize:11}}>↗</span>
-                <span onClick={()=>onUpdate({...task,tags:(task.tags||[]).filter(x=>x!==t)})} style={{cursor:'pointer',opacity:.6,lineHeight:1,fontSize:14}}>×</span>
-              </span>
-            ))}
-            {tagInput?(
-              <input value={newTag} onChange={e=>setNewTag(e.target.value)}
-                onKeyDown={e=>{if(e.key==='Enter')addTag();if(e.key==='Escape'){setNewTag('');setTagInput(false);}}}
-                onBlur={()=>{if(!newTag.trim())setTagInput(false);}}
-                placeholder="#tag" autoFocus
-                style={{border:'1px solid #E5E5EA',borderRadius:7,padding:'3px 8px',fontSize:11,fontFamily:"'DM Mono',monospace",width:80}}
-              />
-            ):(
-              <button onClick={()=>setTagInput(true)} style={{background:'none',border:'1px dashed #C7C7CC',borderRadius:12,padding:'2px 10px',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',cursor:'pointer'}}>+ tag</button>
-            )}
-          </div>
-          {/* Checklist */}
-          {(task.checklist||[]).length>0&&(
-            <div style={{marginBottom:8,paddingBottom:8,borderBottom:'1px solid #F2F2F7'}}>
-              {(task.checklist||[]).map((item,i)=>(
-                <CItem key={item.id} item={item}
-                  onChange={upd=>updCl((task.checklist||[]).map((c,j)=>j===i?upd:c))}
-                  onDelete={()=>updCl((task.checklist||[]).filter((_,j)=>j!==i))}
-                />
-              ))}
-            </div>
-          )}
-          {/* Add checklist */}
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-            <input value={clItem} onChange={e=>setClItem(e.target.value)}
-              onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();addCl();}}}
-              onClick={e=>e.stopPropagation()}
-              placeholder="Add checklist item…"
-              style={{flex:1,border:'none',background:'transparent',fontSize:12,fontFamily:"'Lora',serif",color:'#6B6B6B',padding:0,outline:'none'}}
-            />
-            {clItem&&<button onClick={e=>{e.preventDefault();e.stopPropagation();addCl();}} style={{background:'#4B8EF7',border:'none',borderRadius:4,padding:'3px 8px',color:'#fff',fontSize:11,cursor:'pointer'}}>Add</button>}
-            <button onClick={suggestCl} disabled={aiLoading} style={{background:'none',border:'1px solid #E5E5EA',borderRadius:7,padding:'3px 10px',fontSize:10,fontFamily:"'DM Mono',monospace",color:'#4B8EF7',cursor:'pointer'}}>
-              {aiLoading?'…':'✦ AI suggest'}
-            </button>
-          </div>
-          {/* Actions */}
-          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            {onConvertToProject&&<button onClick={()=>onConvertToProject(task)} style={{background:'none',border:'1px solid #E5E5EA',borderRadius:6,padding:'4px 10px',color:'#7c3aed',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer',marginRight:'auto'}}>📁 Convert to project</button>}
-            <button onClick={()=>onDelete(task.id)} style={{background:'none',border:'none',color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Delete</button>
-            <button onClick={()=>setExpanded(false)} style={{background:'none',border:'1px solid #E5E5EA',borderRadius:6,padding:'4px 14px',color:'#6B6B6B',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Done</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── New Task Row ──────────────────────────────────────────────────────────────
-function NewTaskRow({onAdd,placeholder='New To-Do',section='inbox',projectId=null,headingId=null,when=null}){
-  const [active,setActive]=useState(false);
-  const [val,setVal]=useState('');
-  const ref=useRef(null);
-  const submit=()=>{
-    if(!val.trim()){setActive(false);return;}
-    onAdd({title:val.trim(),section,projectId,headingId,when});
-    setVal('');ref.current?.focus();
-  };
-  if(!active)return(
-    <div onClick={()=>{setActive(true);setTimeout(()=>ref.current?.focus(),50);}}
-      style={{display:'flex',alignItems:'center',gap:12,padding:'8px 16px',cursor:'pointer',color:'#AEAEB2',fontSize:15,fontFamily:"'Lora',serif",borderRadius:8,transition:'background .1s'}}
-      onMouseEnter={e=>e.currentTarget.style.background='#F8F8FA'}
-      onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-    >
-      <span style={{fontSize:20,lineHeight:1}}>+</span>{placeholder}
-    </div>
-  );
-  return(
-    <div style={{display:'flex',alignItems:'center',gap:12,padding:'8px 16px'}}>
-      <div style={{width:22,height:22,borderRadius:'50%',border:'2px solid #C7C7CC',flexShrink:0}}/>
-      <input ref={ref} value={val} onChange={e=>setVal(e.target.value)}
-        onKeyDown={e=>{if(e.key==='Enter')submit();if(e.key==='Escape'){setActive(false);setVal('');}}}
-        onBlur={()=>{if(!val.trim())setActive(false);}}
-        placeholder={placeholder} autoFocus
-        style={{flex:1,border:'none',background:'transparent',fontSize:15,fontFamily:"'Lora',serif",color:'#1C1C1E',padding:0}}
-      />
-    </div>
-  );
-}
-
-// ── Heading Row ───────────────────────────────────────────────────────────────
-function HeadingRow({heading,onUpdate}){
-  const [editing,setEditing]=useState(false);
-  const [val,setVal]=useState(heading.title);
-  if(editing)return(
-    <div style={{padding:'16px 16px 4px'}}>
-      <input value={val} onChange={e=>setVal(e.target.value)}
-        onBlur={()=>{onUpdate({...heading,title:val});setEditing(false);}}
-        onKeyDown={e=>{if(e.key==='Enter'){onUpdate({...heading,title:val});setEditing(false);}}}
-        autoFocus style={{border:'none',background:'transparent',fontSize:12,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#6B6B6B',letterSpacing:'.08em',textTransform:'uppercase',width:'100%'}}
-      />
-    </div>
-  );
-  return(
-    <div onDoubleClick={()=>setEditing(true)} style={{padding:'16px 16px 4px',cursor:'default'}}>
-      <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',letterSpacing:'.08em',textTransform:'uppercase'}}>{heading.title}</span>
-    </div>
-  );
-}
-
-// ── Project View ──────────────────────────────────────────────────────────────
-function ProjectView({project,tasks,headings,areas,apiKey,onAddTask,onUpdateTask,onCompleteTask,onDeleteTask,onAddHeading,onUpdateHeading,onUpdateProject,onDeleteProject,autoEdit=false,onAutoEditDone}){
-  const area=areas.find(a=>a.id===project.areaId);
-  const active=tasks.filter(t=>t.projectId===project.id&&!t.done);
-  const done=tasks.filter(t=>t.projectId===project.id&&t.done);
-  const total=tasks.filter(t=>t.projectId===project.id).length;
-  const progress=total>0?Math.round((done.length/total)*100):0;
-  const noHead=active.filter(t=>!t.headingId);
-  const groups=headings.map(h=>({h,tasks:active.filter(t=>t.headingId===h.id)}));
-  const sharedProps={project,projects,areas,onComplete:onCompleteTask,onUpdate:onUpdateTask,onDelete:onDeleteTask,apiKey,onTagClick:null,onConvertToProject:null};
-
-  const [showEdit,setShowEdit]=useState(autoEdit);
-  const [notes,setNotes]=useState(project.notes||'');
-  useEffect(()=>{if(autoEdit){setShowEdit(true);onAutoEditDone&&onAutoEditDone();}},[]);
-  const saveNotes=()=>{if(notes!==project.notes)onUpdateProject({...project,notes});};
-  return(
-    <div>
-      {showEdit&&<EditProjectSheet project={project} areas={areas} onSave={p=>{onUpdateProject(p);setShowEdit(false);}} onDelete={onDeleteProject} onClose={()=>setShowEdit(false)}/>}
-      <div style={{padding:'24px 24px 16px'}}>
-        {area&&<div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>{area.name}</div>}
-        <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:10}}>
-          <h1 style={{flex:1,margin:0,fontSize:26,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',lineHeight:1.2}}>{project.title}</h1>
-          <button onClick={()=>setShowEdit(true)} style={{background:'none',border:'none',color:'#AEAEB2',fontSize:20,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0}}>⋯</button>
-        </div>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} onBlur={saveNotes}
-          placeholder="Project notes…"
-          rows={notes?undefined:1}
-          style={{width:'100%',border:'none',background:'transparent',fontSize:13,fontFamily:"'Lora',serif",color:'#6B6B6B',resize:'none',padding:0,lineHeight:1.6,marginBottom:8,outline:'none'}}
-        />
-        {total>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{flex:1,height:4,background:'#E5E5EA',borderRadius:2,overflow:'hidden'}}>
-              <div style={{height:'100%',background:project.color||'#4B8EF7',borderRadius:2,width:`${progress}%`,transition:'width .4s ease'}}/>
-            </div>
-            <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',flexShrink:0}}>{progress}%</span>
-          </div>
-        )}
-      </div>
-      {/* Tasks without heading */}
-      {noHead.map(t=><TaskRow key={t.id} task={t} {...sharedProps}/>)}
-      {/* Headed groups */}
-      {groups.map(({h,tasks:ht})=>(
-        <div key={h.id}>
-          <HeadingRow heading={h} onUpdate={onUpdateHeading}/>
-          {ht.map(t=><TaskRow key={t.id} task={t} {...sharedProps}/>)}
-          <NewTaskRow onAdd={f=>onAddTask({...f,headingId:h.id,projectId:project.id,section:'anytime'})} placeholder="New To-Do" section="anytime" projectId={project.id} headingId={h.id}/>
-        </div>
-      ))}
-      <NewTaskRow onAdd={f=>onAddTask({...f,projectId:project.id,section:'anytime'})} placeholder="New To-Do" section="anytime" projectId={project.id}/>
-      <div style={{padding:'4px 16px 8px'}}>
-        <button onClick={()=>onAddHeading(project.id)} style={{background:'none',border:'none',color:'#AEAEB2',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer',padding:'4px 0'}}>+ Add heading</button>
-      </div>
-      {/* Done */}
-      {done.length>0&&(
-        <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #F2F2F7'}}>
-          <div style={{padding:'8px 16px 4px',fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>Completed · {done.length}</div>
-          {done.map(t=>(
-            <div key={t.id} style={{display:'flex',alignItems:'center',gap:12,padding:'7px 16px',opacity:.5}}>
-              <div style={{width:22,height:22,borderRadius:'50%',background:project.color||'#4B8EF7',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1,5 4.5,8.5 11,1" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <span style={{fontSize:14,fontFamily:"'Lora',serif",color:'#AEAEB2',textDecoration:'line-through'}}>{t.title}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── AI Planner ────────────────────────────────────────────────────────────────
-function AIPlanner({apiKey,projectTitle,onAccept,onClose}){
-  const [desc,setDesc]=useState('');
-  const [plan,setPlan]=useState(null);
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState('');
-  const run=async()=>{
-    if(!desc.trim())return;
-    if(!apiKey){setErr('Add your API key in Settings first.');return;}
-    setBusy(true);setErr('');
-    try{const p=await planProject(apiKey,projectTitle,desc);setPlan(p);}
-    catch(e){setErr(e.message||'Failed — try again.');}
-    setBusy(false);
-  };
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr">
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Plan with AI</h3>
-              <p style={{margin:'3px 0 0',fontSize:12,color:'#AEAEB2',fontFamily:"'DM Mono',monospace"}}>Describe what you want to achieve</p>
-            </div>
-            <button onClick={onClose} style={{background:'none',fontSize:22,color:'#AEAEB2',border:'none',cursor:'pointer'}}>✕</button>
-          </div>
-        </div>
-        <div className="sh-body">
-          {!plan?(
-            <>
-              <textarea value={desc} onChange={e=>setDesc(e.target.value)} className="inp" autoFocus
-                placeholder={`Describe the project goal and any context...\n\ne.g. "Redesign the company website. Need new homepage, about page, and contact form. Working with an external developer."`}
-                rows={6} style={{resize:'none',lineHeight:1.75,marginBottom:12}}
-              />
-              {err&&<div style={{display:'flex',alignItems:'center',gap:8,background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:8,padding:'9px 12px',marginBottom:10}}><span style={{fontSize:12,color:'#FF3B30',fontFamily:"'DM Mono',monospace",flex:1}}>{err}</span><span onClick={()=>setErr('')} style={{color:'#FFAAAA',cursor:'pointer',fontSize:16,lineHeight:1}}>×</span></div>}
-              <button onClick={run} disabled={!desc.trim()||busy} className="btn-primary" style={{background:desc.trim()&&!busy?'#4B8EF7':undefined,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                {busy?<><span style={{animation:'spin 1s linear infinite',display:'inline-block',fontSize:16}}>✦</span>Planning…</>:'Generate plan →'}
-              </button>
-            </>
-          ):(
-            <>
-              <p style={{fontSize:13,color:'#6B6B6B',fontFamily:"'Lora',serif",fontStyle:'italic',marginBottom:16,lineHeight:1.6}}>Review the plan, then save it to your project.</p>
-              {plan.map((sec,i)=>(
-                <div key={i} style={{marginBottom:16}}>
-                  {sec.heading&&<div style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',letterSpacing:'.08em',textTransform:'uppercase',marginBottom:8}}>{sec.heading}</div>}
-                  {sec.tasks.map((t,j)=>(
-                    <div key={j} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid #F2F2F7'}}>
-                      <div style={{width:18,height:18,borderRadius:'50%',border:'2px solid #C7C7CC',flexShrink:0}}/>
-                      <span style={{fontSize:14,fontFamily:"'Lora',serif",color:'#1C1C1E'}}>{t}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-        {plan&&(
-          <div className="sh-foot" style={{display:'flex',gap:8}}>
-            <button onClick={()=>setPlan(null)} className="btn-ghost" style={{flex:1}}>← Redo</button>
-            <button onClick={()=>onAccept(plan)} style={{flex:2,background:'#4B8EF7',border:'none',borderRadius:10,padding:'12px',color:'#fff',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer'}}>Save to project →</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── New Project Sheet ─────────────────────────────────────────────────────────
-function NewProjectSheet({areas,apiKey,onSave,onClose,initialAreaId=null}){
-  const [title,setTitle]=useState('');
-  const [areaId,setAreaId]=useState(initialAreaId);
-  const [color,setColor]=useState(COLORS[0]);
-  const [plan,setPlan]=useState(null);
-  const [showAI,setShowAI]=useState(false);
-
-  if(showAI)return(
-    <AIPlanner apiKey={apiKey} projectTitle={title||'New Project'}
-      onAccept={p=>{setPlan(p);setShowAI(false);}}
-      onClose={()=>setShowAI(false)}
-    />
-  );
-
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr">
-          <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>New Project</h3>
-        </div>
-        <div className="sh-body">
-          <input value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>e.key==='Enter'&&title.trim()&&onSave({title,areaId,color,plan})&&onClose()}
-            placeholder="Project title" autoFocus className="inp" style={{marginBottom:14}}
-          />
-          {/* Color */}
-          <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-            {COLORS.map(c=>(
-              <div key={c} onClick={()=>setColor(c)} style={{width:26,height:26,borderRadius:'50%',background:c,cursor:'pointer',boxShadow:color===c?`0 0 0 2px #fff, 0 0 0 4px ${c}`:'none',transition:'box-shadow .12s'}}/>
-            ))}
-          </div>
-          {/* Area */}
-          {areas.length>0&&(
-            <div style={{marginBottom:14}}>
-              <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:6}}>Area</p>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                <button onClick={()=>setAreaId(null)} style={{background:!areaId?'#EBF3FF':'#F2F2F7',border:`1px solid ${!areaId?'#4B8EF7':'transparent'}`,borderRadius:8,padding:'5px 12px',fontSize:12,fontFamily:"'DM Mono',monospace",color:!areaId?'#4B8EF7':'#6B6B6B',cursor:'pointer'}}>None</button>
-                {areas.map(a=>(
-                  <button key={a.id} onClick={()=>setAreaId(a.id)} style={{background:areaId===a.id?'#EBF3FF':'#F2F2F7',border:`1px solid ${areaId===a.id?'#4B8EF7':'transparent'}`,borderRadius:8,padding:'5px 12px',fontSize:12,fontFamily:"'DM Mono',monospace",color:areaId===a.id?'#4B8EF7':'#6B6B6B',cursor:'pointer'}}>{a.name}</button>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* AI Plan preview */}
-          {plan&&(
-            <div style={{background:'#EBF3FF',border:'1px solid #c3d7f7',borderRadius:10,padding:'10px 14px',marginBottom:12}}>
-              <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#4B8EF7',fontWeight:600,margin:'0 0 4px'}}>✦ AI PLAN · {plan.reduce((a,s)=>a+s.tasks.length,0)} tasks</p>
-              <p style={{fontSize:12,color:'#6B6B6B',fontFamily:"'Lora',serif",margin:0}}>{plan.map(s=>s.heading||'Tasks').join(' · ')}</p>
-              <button onClick={()=>setShowAI(true)} style={{background:'none',border:'none',color:'#4B8EF7',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer',padding:'4px 0 0',display:'block'}}>Edit plan</button>
-            </div>
-          )}
-        </div>
-        <div className="sh-foot" style={{display:'flex',gap:8}}>
-          <button onClick={()=>setShowAI(true)} style={{flex:1,background:'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:'#4B8EF7',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>✦ Plan with AI</button>
-          <button onClick={()=>{if(title.trim()){onSave({title,areaId,color,plan});onClose();}}} disabled={!title.trim()}
-            style={{flex:2,background:title.trim()?'#4B8EF7':'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:title.trim()?'#fff':'#AEAEB2',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:title.trim()?'pointer':'default'}}
-          >Create project</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ── Edit Project Sheet ────────────────────────────────────────────────────────
-function EditProjectSheet({project,areas,onSave,onDelete,onClose}){
-  const [title,setTitle]=useState(project.title);
-  const [areaId,setAreaId]=useState(project.areaId||null);
-  const [color,setColor]=useState(project.color||COLORS[0]);
-  const [confirmDel,setConfirmDel]=useState(false);
-  const save=()=>{onSave({...project,title,areaId,color});onClose();};
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Edit Project</h3>
-          <button onClick={onClose} style={{background:'none',fontSize:22,color:'#AEAEB2',border:'none',cursor:'pointer'}}>✕</button>
-        </div>
-        <div className="sh-body">
-          <input value={title} onChange={e=>setTitle(e.target.value)} className="inp" style={{marginBottom:16}} autoFocus/>
-          {/* Color */}
-          <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.08em',color:'#AEAEB2',marginBottom:8}}>Colour</p>
-          <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-            {COLORS.map(col=>(
-              <div key={col} onClick={()=>setColor(col)} style={{width:28,height:28,borderRadius:'50%',background:col,cursor:'pointer',boxShadow:color===col?`0 0 0 2px #fff,0 0 0 4px ${col}`:'none',transition:'box-shadow .12s'}}/>
-            ))}
-          </div>
-          {/* Area */}
-          <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.08em',color:'#AEAEB2',marginBottom:8}}>Area</p>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:24}}>
-            <button onClick={()=>setAreaId(null)} style={{background:!areaId?'#EBF3FF':'#F2F2F7',border:`1px solid ${!areaId?'#4B8EF7':'transparent'}`,borderRadius:8,padding:'6px 14px',fontSize:12,fontFamily:"'DM Mono',monospace",color:!areaId?'#4B8EF7':'#6B6B6B',cursor:'pointer'}}>No area</button>
-            {areas.map(a=>(
-              <button key={a.id} onClick={()=>setAreaId(a.id)} style={{background:areaId===a.id?'#EBF3FF':'#F2F2F7',border:`1px solid ${areaId===a.id?'#4B8EF7':'transparent'}`,borderRadius:8,padding:'6px 14px',fontSize:12,fontFamily:"'DM Mono',monospace",color:areaId===a.id?'#4B8EF7':'#6B6B6B',cursor:'pointer'}}>{a.name}</button>
-            ))}
-          </div>
-          {/* Delete */}
-          {!confirmDel?(
-            <button onClick={()=>setConfirmDel(true)} style={{background:'none',border:'1px solid #FFD0D0',borderRadius:8,padding:'8px 16px',color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer',width:'100%'}}>Delete project…</button>
-          ):(
-            <div style={{background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:10,padding:'14px',textAlign:'center'}}>
-              <p style={{fontSize:13,color:'#FF3B30',fontFamily:"'Lora',serif",marginBottom:12}}>Delete "{project.title}"? Tasks will move to Inbox.</p>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setConfirmDel(false)} style={{flex:1,background:'#F2F2F7',border:'none',borderRadius:8,padding:'10px',color:'#6B6B6B',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Cancel</button>
-                <button onClick={()=>{onDelete(project.id);onClose();}} style={{flex:1,background:'#FF3B30',border:'none',borderRadius:8,padding:'10px',color:'#fff',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Delete</button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="sh-foot" style={{display:'flex',gap:8}}>
-          <button onClick={onClose} className="btn-ghost" style={{flex:1}}>Cancel</button>
-          <button onClick={save} disabled={!title.trim()} style={{flex:2,background:title.trim()?'#4B8EF7':'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:title.trim()?'#fff':'#AEAEB2',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:title.trim()?'pointer':'default'}}>Save changes</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── New Area Sheet ────────────────────────────────────────────────────────────
-function NewAreaSheet({onSave,onClose}){
-  const [name,setName]=useState('');
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr"><h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>New Area</h3></div>
-        <div className="sh-body">
-          <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&name.trim()){onSave({name});onClose();}}}
-            placeholder="e.g. Work, Personal, Health" autoFocus className="inp"
-          />
-        </div>
-        <div className="sh-foot">
-          <button onClick={()=>{if(name.trim()){onSave({name});onClose();}}} disabled={!name.trim()} className="btn-primary" style={{background:name.trim()?'#4B8EF7':undefined}}>Create area</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Brain Dump ────────────────────────────────────────────────────────────────
-function BrainDump({apiKey,onSaveAll,onClose}){
-  const [stage,setStage]=useState(1);
-  const [text,setText]=useState('');
-  const [items,setItems]=useState([]);
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState('');
-  const ref=useRef(null);
-  useEffect(()=>{setTimeout(()=>ref.current?.focus(),100);},[]);
-
-  const extract=async()=>{
-    if(!text.trim())return;
-    if(!apiKey){setErr('API key needed — add it in Settings.');return;}
-    setBusy(true);setErr('');
-    try{const r=await parseDump(apiKey,text);setItems(r.map(i=>({...i,id:uid(),_keep:true})));setStage(2);}
-    catch(e){setErr(e.message||'Failed — try again.');}
-    setBusy(false);
-  };
-  const moveIndent=(id,d)=>setItems(it=>it.map(i=>i.id===id?{...i,indent:Math.max(0,Math.min(1,(i.indent||0)+d))}:i));
-  const toggle=id=>setItems(it=>it.map(i=>i.id===id?{...i,_keep:!i._keep}:i));
-  const save=()=>{
-    onSaveAll(items.filter(i=>i._keep).map(({_keep,indent,...r})=>({...r,id:uid(),done:false,checklist:[],tags:[],createdAt:new Date().toISOString()})));
-    onClose();
-  };
-
-  return(
-    <div className="overlay" onClick={stage===1?onClose:undefined}>
-      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr">
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
-            <div>
-              <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Brain dump</h3>
-              <p style={{margin:'3px 0 0',fontSize:12,color:'#AEAEB2',fontFamily:"'DM Mono',monospace"}}>
-                {stage===1?'Just write — I\'ll sort it out':'Review items, then save'}
-              </p>
-            </div>
-            <button onClick={onClose} style={{background:'none',fontSize:22,color:'#AEAEB2',border:'none',cursor:'pointer'}}>✕</button>
-          </div>
-          <div style={{display:'flex',gap:3}}>
-            {['Write','Review','Save'].map((l,i)=>(
-              <div key={i} style={{height:3,flex:1,borderRadius:2,background:stage>i?'#4B8EF7':'#E5E5EA',transition:'background .3s'}}/>
-            ))}
-          </div>
-        </div>
-        <div className="sh-body">
-          {stage===1&&(
-            <>
-              <textarea ref={ref} value={text} onChange={e=>setText(e.target.value)}
-                placeholder={"Write everything on your mind — stream of consciousness, no structure needed.\n\nNeed to call the accountant. Idea for automating reports. Pick up dry cleaning today. Reply to Sarah asap."}
-                rows={9} className="inp" style={{resize:'none',lineHeight:1.75,marginBottom:12}}
-              />
-              {err&&<div style={{display:'flex',alignItems:'center',gap:8,background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:8,padding:'9px 12px',marginBottom:10}}><span style={{fontSize:12,color:'#FF3B30',fontFamily:"'DM Mono',monospace",flex:1}}>{err}</span><span onClick={()=>setErr('')} style={{color:'#FFAAAA',cursor:'pointer',fontSize:16,lineHeight:1}}>×</span></div>}
-              <button onClick={extract} disabled={!text.trim()||busy} className="btn-primary" style={{background:text.trim()&&!busy?'#1C1C1E':undefined,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                {busy?<><span style={{animation:'spin 1s linear infinite',display:'inline-block',fontSize:16}}>✦</span>Extracting…</>:err?'Retry →':'Extract items →'}
-              </button>
-            </>
-          )}
-          {stage===2&&(
-            <>
-              <p style={{fontSize:13,color:'#6B6B6B',fontFamily:"'Lora',serif",fontStyle:'italic',marginBottom:14,lineHeight:1.6}}>Use ← → to group related items. Tap × to exclude.</p>
-              {items.map(item=>(
-                <div key={item.id} style={{display:'flex',gap:8,alignItems:'center',padding:'8px 12px',border:'1px solid #E5E5EA',borderRadius:9,marginBottom:6,background:item._keep?'#fff':'#F8F8FA',opacity:item._keep?1:.4,marginLeft:`${(item.indent||0)*18}px`,transition:'all .15s'}}>
-                  <div style={{width:16,height:16,borderRadius:'50%',border:'2px solid #C7C7CC',flexShrink:0}}/>
-                  <span style={{flex:1,fontSize:14,fontFamily:"'Lora',serif",color:'#1C1C1E'}}>{item.title}</span>
-                  <div style={{display:'flex',gap:3}}>
-                    {(item.indent||0)>0&&<button onClick={()=>moveIndent(item.id,-1)} className="mini-btn">←</button>}
-                    {(item.indent||0)<1&&<button onClick={()=>moveIndent(item.id,1)} className="mini-btn">→</button>}
-                    <button onClick={()=>toggle(item.id)} className="mini-btn" style={{color:item._keep?'#FF3B30':'#34C759'}}>{item._keep?'×':'+'}</button>
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-        {stage===2&&(
-          <div className="sh-foot" style={{display:'flex',gap:8}}>
-            <button onClick={()=>{setStage(1);setItems([]);}} className="btn-ghost" style={{flex:1}}>← Rewrite</button>
-            <button onClick={save} disabled={!items.filter(i=>i._keep).length}
-              style={{flex:2,background:'#1C1C1E',border:'none',borderRadius:10,padding:'12px',color:'#fff',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer'}}
-            >Save {items.filter(i=>i._keep).length} items →</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Settings ──────────────────────────────────────────────────────────────────
-function Settings({settings,onSave,driveConnected,onConnect,onDisconnect,onClose}){
-  const [ak,setAk]=useState(settings.apiKey||'');
-  const [gcid,setGcid]=useState(settings.googleClientId||'');
-  const [show,setShow]=useState(false);
-  const save=()=>{onSave({apiKey:ak.trim(),googleClientId:gcid.trim()});};
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-box sheet" style={{maxHeight:'94vh'}} onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Settings</h3>
-          <button onClick={onClose} style={{background:'none',fontSize:22,color:'#AEAEB2',border:'none',cursor:'pointer'}}>✕</button>
-        </div>
-        <div className="sh-body">
-          {/* API key */}
-          <div style={{marginBottom:24}}>
-            <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.1em',color:'#AEAEB2',marginBottom:6}}>Anthropic API key</p>
-            <p style={{fontSize:13,color:'#6B6B6B',fontFamily:"'Lora',serif",fontStyle:'italic',lineHeight:1.7,marginBottom:10}}>Powers AI project planning and brain dump parsing. Stored locally in your browser.</p>
-            <div style={{display:'flex',gap:8,marginBottom:6}}>
-              <input type={show?'text':'password'} value={ak} onChange={e=>setAk(e.target.value)} placeholder="sk-ant-…"
-                style={{flex:1,border:'1px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:13,fontFamily:"'DM Mono',monospace",color:'#1C1C1E',background:'#FAFAFA'}}
-              />
-              <button onClick={()=>setShow(v=>!v)} style={{background:'#F2F2F7',border:'none',borderRadius:9,padding:'0 14px',color:'#6B6B6B',fontSize:12,cursor:'pointer'}}>{show?'Hide':'Show'}</button>
-            </div>
-            <p style={{fontSize:11,color:'#AEAEB2',fontFamily:"'DM Mono',monospace"}}>console.anthropic.com → API Keys</p>
-          </div>
-          {/* Drive */}
-          <div style={{marginBottom:24}}>
-            <p style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.1em',color:'#AEAEB2',marginBottom:6}}>Google Drive sync</p>
-            {driveConnected?(
-              <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10}}>
-                <div style={{width:8,height:8,borderRadius:'50%',background:'#34C759',flexShrink:0}}/>
-                <span style={{flex:1,fontSize:13,color:'#166534',fontFamily:"'DM Mono',monospace"}}>Connected to Google Drive</span>
-                <button onClick={onDisconnect} style={{background:'none',border:'1px solid #86EFAC',borderRadius:7,padding:'5px 10px',color:'#16A34A',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Disconnect</button>
-              </div>
-            ):(
-              <>
-                <p style={{fontSize:13,color:'#6B6B6B',fontFamily:"'Lora',serif",fontStyle:'italic',lineHeight:1.7,marginBottom:10}}>Sync your data across devices via a file in Google Drive.</p>
-                <input value={gcid} onChange={e=>setGcid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com"
-                  style={{width:'100%',border:'1px solid #E5E5EA',borderRadius:10,padding:'10px 14px',fontSize:12,fontFamily:"'DM Mono',monospace",color:'#1C1C1E',background:'#FAFAFA',marginBottom:10}}
-                />
-                <button onClick={()=>{save();setTimeout(()=>onConnect(gcid.trim()),200);}} disabled={!gcid.trim()}
-                  style={{width:'100%',background:gcid.trim()?'#4285F4':'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:gcid.trim()?'#fff':'#AEAEB2',fontSize:12,marginBottom:16,cursor:gcid.trim()?'pointer':'default',fontFamily:"'DM Mono',monospace"}}
-                >Connect Google Drive</button>
-                <div style={{background:'#F8F8FA',border:'1px solid #E5E5EA',borderRadius:10,padding:'14px'}}>
-                  <p style={{fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:'.1em',color:'#AEAEB2',marginBottom:8}}>Setup (5 min)</p>
-                  {['console.cloud.google.com → new project','APIs & Services → Enable → Google Drive API','OAuth consent screen → External → save','Credentials → OAuth 2.0 Client ID → Web app','Authorised origins: add your app URL','Audience tab → add yourself as Test User','Copy Client ID and paste above'].map((s,i)=>(
-                    <div key={i} style={{display:'flex',gap:8,marginBottom:5}}>
-                      <span style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:'#FF9500',fontWeight:700,flexShrink:0}}>{i+1}.</span>
-                      <span style={{fontSize:12,color:'#374151',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>{s}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'12px 14px'}}>
-            <p style={{fontSize:12,color:'#92400E',fontFamily:"'DM Mono',monospace",lineHeight:1.6,margin:0}}>⚠ API usage is billed to your Anthropic account. Each planning call typically costs a few pence.</p>
-          </div>
-        </div>
-        <div className="sh-foot">
-          <button onClick={()=>{save();onClose();}} style={{width:'100%',background:'#1C1C1E',border:'none',borderRadius:10,padding:'13px',color:'#fff',fontSize:12,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer'}}>Save settings</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ── Edit Area Sheet ───────────────────────────────────────────────────────────
-function EditAreaSheet({area,onSave,onDelete,onClose}){
-  const [name,setName]=useState(area.name);
-  const [confirmDel,setConfirmDel]=useState(false);
-  return(
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet-box sheet" onClick={e=>e.stopPropagation()}>
-        <div className="handle"/>
-        <div className="sh-hdr" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <h3 style={{margin:0,fontSize:17,fontFamily:"'Lora',serif",fontWeight:500}}>Edit Area</h3>
-          <button onClick={onClose} style={{background:'none',fontSize:22,color:'#AEAEB2',border:'none',cursor:'pointer'}}>✕</button>
-        </div>
-        <div className="sh-body">
-          <input value={name} onChange={e=>setName(e.target.value)} className="inp" autoFocus style={{marginBottom:20}}/>
-          {!confirmDel?(
-            <button onClick={()=>setConfirmDel(true)} style={{background:'none',border:'1px solid #FFD0D0',borderRadius:8,padding:'8px 16px',color:'#FF3B30',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer',width:'100%'}}>Delete area…</button>
-          ):(
-            <div style={{background:'#FFF5F5',border:'1px solid #FFCCCC',borderRadius:10,padding:'14px',textAlign:'center'}}>
-              <p style={{fontSize:13,color:'#FF3B30',fontFamily:"'Lora',serif",marginBottom:4}}>Delete "{area.name}"?</p>
-              <p style={{fontSize:12,color:'#6B6B6B',fontFamily:"'DM Mono',monospace",marginBottom:12}}>Projects will stay but be removed from this area.</p>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setConfirmDel(false)} style={{flex:1,background:'#F2F2F7',border:'none',borderRadius:8,padding:'10px',color:'#6B6B6B',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Cancel</button>
-                <button onClick={()=>{onDelete(area.id);onClose();}} style={{flex:1,background:'#FF3B30',border:'none',borderRadius:8,padding:'10px',color:'#fff',fontSize:12,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>Delete</button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="sh-foot" style={{display:'flex',gap:8}}>
-          <button onClick={onClose} className="btn-ghost" style={{flex:1}}>Cancel</button>
-          <button onClick={()=>{onSave({...area,name});onClose();}} disabled={!name.trim()} style={{flex:2,background:name.trim()?'#4B8EF7':'#F2F2F7',border:'none',borderRadius:10,padding:'12px',color:name.trim()?'#fff':'#AEAEB2',fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:'.06em',textTransform:'uppercase',cursor:name.trim()?'pointer':'default'}}>Save</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Area View ─────────────────────────────────────────────────────────────────
-function AreaView({area,projects,tasks,areas,apiKey,onAddProject,onUpdateArea,onDeleteArea,onGoProject,onUpdateProject,onDeleteProject}){
-  const [showEdit,setShowEdit]=useState(false);
-  const areaProjects=projects.filter(p=>p.areaId===area.id&&p.status==='active');
-  return(
-    <div>
-      {showEdit&&<EditAreaSheet area={area} onSave={upd=>{onUpdateArea(upd);setShowEdit(false);}} onDelete={id=>{onDeleteArea(id);setShowEdit(false);}} onClose={()=>setShowEdit(false)}/>}
-      {/* Header */}
-      <div style={{padding:'24px 24px 20px',borderBottom:'1px solid #F2F2F7'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <h1 style={{flex:1,margin:0,fontSize:26,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E'}}>{area.name}</h1>
-          <button onClick={()=>setShowEdit(true)} style={{background:'none',border:'none',color:'#AEAEB2',fontSize:20,cursor:'pointer',padding:'2px 4px'}}>⋯</button>
-        </div>
-        <p style={{margin:'6px 0 0',fontSize:12,fontFamily:"'DM Mono',monospace",color:'#AEAEB2'}}>{areaProjects.length} project{areaProjects.length!==1?'s':''}</p>
-      </div>
-      {/* Projects grid */}
-      <div style={{padding:'16px 16px 12px'}}>
-        {areaProjects.length===0&&(
-          <div style={{textAlign:'center',padding:'32px 20px',background:'#F8F8FA',borderRadius:12,marginBottom:12}}>
-            <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:15,color:'#AEAEB2',margin:'0 0 16px'}}>No projects in this area yet.</p>
-            <button onClick={()=>onAddProject({title:'New Project',color:COLORS[0]})}
-              style={{background:'#4B8EF7',border:'none',borderRadius:9,padding:'10px 20px',color:'#fff',fontSize:12,fontFamily:"'DM Mono',monospace",letterSpacing:'.05em',cursor:'pointer'}}
-            >＋ Add first project</button>
-          </div>
-        )}
-        {areaProjects.map(p=>{
-          const pTasks=tasks.filter(t=>t.projectId===p.id);
-          const done=pTasks.filter(t=>t.done).length;
-          const total=pTasks.length;
-          const progress=total>0?Math.round((done/total)*100):0;
-          const remaining=total-done;
-          return(
-            <div key={p.id} onClick={()=>onGoProject(p.id)}
-              style={{background:'#fff',border:'1px solid #E5E5EA',borderLeft:`4px solid ${p.color||'#4B8EF7'}`,borderRadius:10,padding:'14px 16px',marginBottom:10,cursor:'pointer',transition:'box-shadow .15s'}}
-              onMouseEnter={e=>e.currentTarget.style.boxShadow='0 3px 14px rgba(0,0,0,.08)'}
-              onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}
-            >
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:total>0?10:0}}>
-                <div style={{width:10,height:10,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>
-                <span style={{flex:1,fontSize:15,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E'}}>{p.title}</span>
-                <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:'#AEAEB2'}}>{remaining} left</span>
-              </div>
-              {total>0&&(
-                <div style={{height:3,background:'#E5E5EA',borderRadius:2,overflow:'hidden'}}>
-                  <div style={{height:'100%',background:p.color||'#4B8EF7',borderRadius:2,width:`${progress}%`,transition:'width .4s ease'}}/>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <button onClick={()=>onAddProject({title:'New Project',color:COLORS[0]})}
-          style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'12px 14px',background:'none',border:'1.5px dashed #E5E5EA',borderRadius:10,color:'#AEAEB2',fontSize:13,fontFamily:"'Lora',serif",cursor:'pointer',transition:'border-color .15s'}}
-          onMouseEnter={e=>e.currentTarget.style.borderColor='#4B8EF7'}
-          onMouseLeave={e=>e.currentTarget.style.borderColor='#E5E5EA'}
-        >
-          <span style={{fontSize:20,lineHeight:1,color:'#C7C7CC'}}>＋</span> New project in {area.name}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-function Sidebar({view,setView,areas,projects,tasks,onNewProject,onNewArea,onEditArea,setSidebarOpen,tagFilter,setTagFilter}){
-  const today=todayStr();
-  const inboxN=tasks.filter(t=>!t.done&&t.section==='inbox').length;
-  const todayN=tasks.filter(t=>!t.done&&((t.when&&t.when<=today)||(t.deadline&&t.deadline<=today&&!t.when))).length;
-  const [collapsed,setCollapsed]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem('th3_collapsed')||'[]'));}catch{return new Set();}});
-  const toggleCollapse=id=>{
-    setCollapsed(prev=>{
-      const next=new Set(prev);
-      next.has(id)?next.delete(id):next.add(id);
-      localStorage.setItem('th3_collapsed',JSON.stringify([...next]));
-      return next;
+// ─── Todoist API Layer ─────────────────────────────────────────────
+const TodoistAPI = {
+  token: null,
+  baseUrl: 'https://api.todoist.com/rest/v2',
+  
+  setToken(t) { this.token = t; },
+  
+  headers() {
+    return { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' };
+  },
+  
+  async getTasks() {
+    const r = await fetch(`${this.baseUrl}/tasks`, { headers: this.headers() });
+    if (!r.ok) throw new Error(`Failed to fetch tasks: ${r.status}`);
+    return r.json();
+  },
+  
+  async getProjects() {
+    const r = await fetch(`${this.baseUrl}/projects`, { headers: this.headers() });
+    if (!r.ok) throw new Error(`Failed to fetch projects: ${r.status}`);
+    return r.json();
+  },
+  
+  async getSections() {
+    const r = await fetch(`${this.baseUrl}/sections`, { headers: this.headers() });
+    if (!r.ok) throw new Error(`Failed to fetch sections: ${r.status}`);
+    return r.json();
+  },
+  
+  async getLabels() {
+    const r = await fetch(`${this.baseUrl}/labels`, { headers: this.headers() });
+    if (!r.ok) throw new Error(`Failed to fetch labels: ${r.status}`);
+    return r.json();
+  },
+  
+  async completeTask(id) {
+    const r = await fetch(`${this.baseUrl}/tasks/${id}/close`, {
+      method: 'POST', headers: this.headers()
     });
-  };
-  const nav=[
-    {id:'inbox',   label:'Inbox',    emoji:'📥',  count:inboxN, accent:'#4B8EF7'},
-    {id:'today',   label:'Today',    emoji:'⭐',  count:todayN, accent:'#FF9500'},
-    {id:'upcoming',label:'Upcoming', emoji:'📅',  count:0,      accent:'#FF6B6B'},
-    {id:'anytime', label:'Anytime',  emoji:'📋',  count:0,      accent:'#4B8EF7'},
-    {id:'someday', label:'Someday',  emoji:'☁️', count:0,      accent:'#8E8E93'},
-    {id:'logbook', label:'Logbook',  emoji:'✓',   count:0,      accent:'#34C759'},
-  ];
-  const goTo=id=>{setView(id);setTagFilter(null);setSidebarOpen(false);};
-  const standalone=projects.filter(p=>!p.areaId&&p.status==='active');
-  return(
-    <div className="sidebar">
-      <div style={{padding:'20px 12px 6px'}}>
-        <div style={{fontSize:22,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',padding:'0 6px',marginBottom:4}}>Things</div>
+    if (!r.ok) throw new Error(`Failed to complete task: ${r.status}`);
+  },
+  
+  async updateTask(id, data) {
+    const r = await fetch(`${this.baseUrl}/tasks/${id}`, {
+      method: 'POST', headers: this.headers(), body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error(`Failed to update task: ${r.status}`);
+    return r.json();
+  },
+  
+  async createTask(data) {
+    const r = await fetch(`${this.baseUrl}/tasks`, {
+      method: 'POST', headers: this.headers(), body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error(`Failed to create task: ${r.status}`);
+    return r.json();
+  },
+
+  async reopenTask(id) {
+    const r = await fetch(`${this.baseUrl}/tasks/${id}/reopen`, {
+      method: 'POST', headers: this.headers()
+    });
+    if (!r.ok) throw new Error(`Failed to reopen task: ${r.status}`);
+  }
+};
+
+// ─── AI API Layer ──────────────────────────────────────────────────
+const ClaudeAPI = {
+  key: null,
+  setKey(k) { this.key = k; },
+  
+  async clarify(taskContent, fuzzyType) {
+    if (!this.key) throw new Error('No Anthropic API key configured');
+    
+    const prompts = {
+      vague: `I captured this fuzzy item: "${taskContent}". I know roughly what area of my life it relates to, but I can't define what "done" looks like or what to do first. Help me by:\n1. Asking me what outcome I actually want (push me to be specific)\n2. Helping me find the very first physical action (under 15 min)\n3. Suggesting whether this is a single action or a project\n4. Recommending context labels from my system: @computer, @phone, @errands, @work, @home, @low-energy, @ai-session, @waiting, @someday`,
+      avoidance: `I have a task I keep avoiding: "${taskContent}". It's been on my list for a while and I skip past it every time. Help me by:\n1. Asking me what specifically feels uncomfortable about it\n2. Reality-checking: what actually happens if I do this? What happens if I keep avoiding it?\n3. Finding the absolute smallest entry point\n4. If it involves another person, help me draft the opening line\n\nBe honest with me.`,
+      tangled: `I have this item that feels overwhelming because it's actually multiple things tangled together: "${taskContent}". Help me by:\n1. Pulling it apart — list every distinct sub-item hiding inside it\n2. For each piece: is it a single action, a project, or noise?\n3. Which pieces are independent vs dependent?\n4. Give me just the FIRST next action for the most important piece\n5. Suggest context and people labels for each piece`,
+      decision: `I'm stuck deciding on: "${taskContent}". Help me by:\n1. Asking me what my options are\n2. For each option, best and worst realistic outcomes\n3. Is this reversible? What's the actual cost of choosing wrong?\n4. Push me to decide right now if I have enough info\n\nDon't be diplomatic. Be the friend who says "just pick one."`,
+      research: `I have this item I can't act on because I don't know enough yet: "${taskContent}". Help me by:\n1. Asking me what specific question I need answered\n2. Turning it into a concrete, time-boxed task (30-60 min max)\n3. Defining what "enough research" looks like\n4. Warning me if this sounds like procrastination disguised as research`,
+      notmine: `I have this item that I'm not sure is actually my responsibility: "${taskContent}". Help me by:\n1. Asking me whose job this really is\n2. If it IS partly mine: what specifically is my piece?\n3. If I need to delegate: help me draft the message\n4. If I need to let go: give me permission to delete it`
+    };
+    
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': this.key, 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompts[fuzzyType] || prompts.vague }]
+      })
+    });
+    if (!r.ok) { const e = await r.text(); throw new Error(`Claude API error: ${e}`); }
+    const data = await r.json();
+    return data.content?.[0]?.text || 'No response';
+  }
+};
+
+// ─── Filter Definitions ────────────────────────────────────────────
+const VIEWS = {
+  inbox: { name: 'Inbox', icon: '◻', filter: t => t.labels.length === 0 && !t.section_id },
+  next: { name: 'Next actions', icon: '▸', filter: t => !t.labels.includes('waiting') && !t.labels.includes('someday') && !t.labels.includes('blocked') },
+  today: { name: 'Today', icon: '◉', filter: t => t.due?.date === new Date().toISOString().slice(0,10) },
+  work: { name: 'Work context', icon: '⊞', filter: t => t.labels.includes('work') && !t.labels.includes('waiting') },
+  home: { name: 'Home context', icon: '⌂', filter: t => (t.labels.includes('home') || t.labels.includes('computer') || t.labels.includes('low-energy')) && !t.labels.includes('waiting') },
+  waiting: { name: 'Waiting for', icon: '◷', filter: t => t.labels.includes('waiting') },
+  someday: { name: 'Someday / maybe', icon: '☁', filter: t => t.labels.includes('someday') },
+  ai: { name: 'AI sessions', icon: '⬡', filter: t => t.labels.includes('ai-session') },
+  quickwins: { name: 'Quick wins', icon: '⚡', filter: t => t.labels.includes('quick-win') && !t.labels.includes('waiting') },
+  overdue: { name: 'Overdue', icon: '⚠', filter: t => t.due?.date && t.due.date < new Date().toISOString().slice(0,10) },
+  stale: { name: 'Stale items', icon: '◌', filter: t => { 
+    if (t.due) return false; 
+    const created = new Date(t.created_at); 
+    const daysOld = (Date.now() - created) / 86400000; 
+    return daysOld > 14; 
+  }},
+  thisweek: { name: 'This week', icon: '▦', filter: t => {
+    if (!t.due?.date) return false;
+    const d = new Date(t.due.date);
+    const now = new Date(); 
+    const end = new Date(); end.setDate(end.getDate() + 7);
+    return d >= now && d <= end;
+  }},
+};
+
+const AGENDA_KEY = '_agendas';
+
+function isPersonLabel(l) {
+  return /^[A-Z]/.test(l) && !['Work','Home','Dev','Finance','Someday'].includes(l);
+}
+
+// ─── Styles ────────────────────────────────────────────────────────
+const S = {
+  app: { display:'flex', height:'100vh', overflow:'hidden' },
+  sidebar: {
+    width:'var(--sidebar-w)', minWidth:'var(--sidebar-w)', background:'var(--bg-surface)',
+    borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column',
+    overflow:'hidden', transition:'min-width var(--transition), width var(--transition)'
+  },
+  sidebarCollapsed: { width:0, minWidth:0, borderRight:'none' },
+  sidebarHeader: {
+    padding:'20px 16px 12px', borderBottom:'1px solid var(--border)',
+    display:'flex', alignItems:'center', justifyContent:'space-between'
+  },
+  logo: { fontWeight:600, fontSize:'15px', letterSpacing:'-0.3px', color:'var(--text-accent)' },
+  sidebarSection: { padding:'12px 0 4px' },
+  sidebarLabel: {
+    padding:'0 16px', fontSize:'10px', fontWeight:600, letterSpacing:'1px',
+    textTransform:'uppercase', color:'var(--text-tertiary)', marginBottom:'4px'
+  },
+  navItem: (active) => ({
+    display:'flex', alignItems:'center', gap:'10px', padding:'6px 16px',
+    fontSize:'13px', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+    background: active ? 'var(--bg-accent-dim)' : 'transparent',
+    borderLeft: active ? '2px solid var(--bg-accent)' : '2px solid transparent',
+    cursor:'pointer', transition:'all var(--transition)', width:'100%', textAlign:'left'
+  }),
+  navIcon: { fontSize:'14px', width:'20px', textAlign:'center', flexShrink:0 },
+  navCount: {
+    marginLeft:'auto', fontSize:'11px', fontFamily:'var(--font-mono)',
+    color:'var(--text-tertiary)', background:'var(--bg-elevated)', padding:'1px 6px',
+    borderRadius:'8px'
+  },
+  main: { flex:1, display:'flex', flexDirection:'column', overflow:'hidden' },
+  topbar: {
+    padding:'16px 24px', borderBottom:'1px solid var(--border)',
+    display:'flex', alignItems:'center', gap:'12px', flexShrink:0
+  },
+  topbarTitle: { fontSize:'18px', fontWeight:600, letterSpacing:'-0.3px' },
+  topbarCount: { fontSize:'13px', color:'var(--text-tertiary)', fontFamily:'var(--font-mono)' },
+  taskList: { flex:1, overflowY:'auto', padding:'8px 0' },
+  taskItem: (priority) => ({
+    display:'flex', alignItems:'flex-start', gap:'12px', padding:'10px 24px',
+    borderBottom:'1px solid var(--border)', cursor:'pointer',
+    transition:'background var(--transition)',
+    borderLeft: priority > 1 ? `2px solid ${priority === 4 ? 'var(--red)' : priority === 3 ? 'var(--bg-accent)' : 'var(--blue)'}` : '2px solid transparent'
+  }),
+  checkbox: (checked) => ({
+    width:'18px', height:'18px', borderRadius:'50%', flexShrink:0, marginTop:'2px',
+    border: checked ? 'none' : '1.5px solid var(--border-hover)',
+    background: checked ? 'var(--green)' : 'transparent',
+    cursor:'pointer', transition:'all var(--transition)',
+    display:'flex', alignItems:'center', justifyContent:'center'
+  }),
+  taskContent: { flex:1, minWidth:0 },
+  taskTitle: (completed) => ({
+    fontSize:'13px', lineHeight:'1.5',
+    textDecoration: completed ? 'line-through' : 'none',
+    color: completed ? 'var(--text-tertiary)' : 'var(--text-primary)'
+  }),
+  taskMeta: { display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'4px' },
+  label: (color) => ({
+    fontSize:'11px', padding:'1px 8px', borderRadius:'6px',
+    background: color || 'var(--bg-elevated)', color: 'var(--text-secondary)',
+    fontFamily:'var(--font-mono)', whiteSpace:'nowrap'
+  }),
+  dueDate: (overdue) => ({
+    fontSize:'11px', fontFamily:'var(--font-mono)',
+    color: overdue ? 'var(--red)' : 'var(--text-tertiary)'
+  }),
+  groupHeader: {
+    padding:'16px 24px 6px', fontSize:'11px', fontWeight:600,
+    letterSpacing:'1px', textTransform:'uppercase', color:'var(--text-tertiary)',
+    position:'sticky', top:0, background:'var(--bg-root)', zIndex:1
+  },
+  emptyState: {
+    padding:'60px 24px', textAlign:'center', color:'var(--text-tertiary)', fontSize:'14px'
+  },
+  btn: (variant) => ({
+    padding:'6px 14px', borderRadius:'6px', fontSize:'12px', fontWeight:500,
+    transition:'all var(--transition)',
+    ...(variant === 'primary' ? {
+      background:'var(--bg-accent)', color:'var(--text-on-accent)'
+    } : variant === 'danger' ? {
+      background:'var(--red-dim)', color:'var(--red)', border:'1px solid transparent'
+    } : {
+      background:'var(--bg-elevated)', color:'var(--text-secondary)',
+      border:'1px solid var(--border)'
+    })
+  }),
+  input: {
+    background:'var(--bg-elevated)', border:'1px solid var(--border)',
+    borderRadius:'6px', padding:'8px 12px', color:'var(--text-primary)',
+    fontSize:'13px', width:'100%', outline:'none'
+  },
+  modal: {
+    position:'fixed', inset:0, background:'rgba(0,0,0,.6)',
+    display:'flex', alignItems:'center', justifyContent:'center', zIndex:100
+  },
+  modalContent: {
+    background:'var(--bg-surface)', borderRadius:'12px', border:'1px solid var(--border)',
+    width:'90%', maxWidth:'520px', maxHeight:'80vh', overflow:'auto', padding:'24px'
+  },
+  quickAdd: {
+    padding:'12px 24px', borderTop:'1px solid var(--border)',
+    background:'var(--bg-surface)', flexShrink:0
+  }
+};
+
+// ─── Label Color Map ───────────────────────────────────────────────
+const LABEL_COLORS = {
+  waiting: 'var(--purple-dim)', someday: 'var(--blue-dim)',
+  'ai-session': 'var(--bg-accent-dim)', 'quick-win': 'var(--green-dim)',
+  blocked: 'var(--red-dim)', work: null, home: null, computer: null,
+  phone: null, errands: null, 'low-energy': null
+};
+
+function labelColor(l) {
+  if (LABEL_COLORS[l] !== undefined) return LABEL_COLORS[l];
+  if (isPersonLabel(l)) return 'var(--purple-dim)';
+  return null;
+}
+
+// ─── Setup Screen ──────────────────────────────────────────────────
+function SetupScreen({ onSave }) {
+  const [todoistKey, setTodoistKey] = useState('');
+  const [claudeKey, setClaudeKey] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleTest() {
+    if (!todoistKey.trim()) { setError('Todoist API token is required'); return; }
+    setTesting(true); setError('');
+    try {
+      TodoistAPI.setToken(todoistKey.trim());
+      await TodoistAPI.getProjects();
+      onSave(todoistKey.trim(), claudeKey.trim());
+    } catch(e) {
+      setError(`Connection failed: ${e.message}`);
+    }
+    setTesting(false);
+  }
+
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--bg-root)'}}>
+      <div style={{width:'100%',maxWidth:'400px',padding:'32px'}}>
+        <div style={{marginBottom:'32px'}}>
+          <div style={{fontSize:'24px',fontWeight:600,color:'var(--text-accent)',letterSpacing:'-0.5px',marginBottom:'4px'}}>
+            GTD Dashboard
+          </div>
+          <div style={{fontSize:'13px',color:'var(--text-tertiary)'}}>
+            Connect your Todoist account to get started
+          </div>
+        </div>
+
+        <div style={{marginBottom:'16px'}}>
+          <div style={{fontSize:'12px',fontWeight:500,color:'var(--text-secondary)',marginBottom:'6px'}}>
+            Todoist API token *
+          </div>
+          <input style={S.input} type="password" value={todoistKey}
+            onChange={e => setTodoistKey(e.target.value)}
+            placeholder="Paste from Settings → Integrations → Developer" />
+          <div style={{fontSize:'11px',color:'var(--text-tertiary)',marginTop:'4px'}}>
+            Find this in Todoist → Settings → Integrations → Developer
+          </div>
+        </div>
+
+        <div style={{marginBottom:'24px'}}>
+          <div style={{fontSize:'12px',fontWeight:500,color:'var(--text-secondary)',marginBottom:'6px'}}>
+            Anthropic API key (optional)
+          </div>
+          <input style={S.input} type="password" value={claudeKey}
+            onChange={e => setClaudeKey(e.target.value)}
+            placeholder="sk-ant-... (for AI features)" />
+          <div style={{fontSize:'11px',color:'var(--text-tertiary)',marginTop:'4px'}}>
+            Enables AI clarify, review, and planning features
+          </div>
+        </div>
+
+        {error && (
+          <div style={{fontSize:'12px',color:'var(--red)',marginBottom:'12px',padding:'8px 12px',
+            background:'var(--red-dim)',borderRadius:'6px'}}>{error}</div>
+        )}
+
+        <button style={S.btn('primary')} onClick={handleTest}
+          disabled={testing}>
+          {testing ? 'Testing connection...' : 'Connect & start'}
+        </button>
       </div>
-      <div style={{padding:'4px 8px 8px'}}>
-        {nav.map(v=>(
-          <button key={v.id} className={`nav-btn${view===v.id&&!tagFilter?' active':''}`} onClick={()=>goTo(v.id)}>
-            <span style={{fontSize:16,lineHeight:1}}>{v.emoji}</span>
-            <span className="lbl">{v.label}</span>
-            {v.count>0&&<span className="cnt" style={{color:view===v.id?v.accent:undefined}}>{v.count}</span>}
-          </button>
-        ))}
-      </div>
-      <div style={{flex:1,padding:'4px 8px',borderTop:'1px solid #F2F2F7',overflowY:'auto'}}>
-        {standalone.map(p=>{
-          const id=`project:${p.id}`;const active=view===id&&!tagFilter;
-          const n=tasks.filter(t=>t.projectId===p.id&&!t.done).length;
-          return(
-            <button key={p.id} className={`nav-btn${active?' active':''}`} onClick={()=>goTo(id)} style={{background:active?`${p.color||'#4B8EF7'}18`:undefined}}>
-              <div style={{width:10,height:10,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>
-              <span className="lbl" style={{color:active?p.color||'#4B8EF7':'#1C1C1E',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.title}</span>
-              {n>0&&<span className="cnt">{n}</span>}
+    </div>
+  );
+}
+
+// ─── Quick Add ─────────────────────────────────────────────────────
+function QuickAdd({ onAdd, labels }) {
+  const [text, setText] = useState('');
+  const [showLabels, setShowLabels] = useState(false);
+  const [selectedLabels, setSelectedLabels] = useState([]);
+  const inputRef = useRef(null);
+
+  function toggleLabel(l) {
+    setSelectedLabels(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    try {
+      await onAdd({ content: text.trim(), labels: selectedLabels });
+      setText(''); setSelectedLabels([]); setShowLabels(false);
+    } catch(err) { console.error(err); }
+  }
+
+  return (
+    <div style={S.quickAdd}>
+      <form onSubmit={handleSubmit} style={{display:'flex',gap:'8px',alignItems:'center'}}>
+        <input ref={inputRef} style={{...S.input, flex:1}} value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Quick add task..." />
+        <button type="button" style={S.btn()} onClick={() => setShowLabels(!showLabels)}>
+          @{selectedLabels.length > 0 ? ` ${selectedLabels.length}` : ''}
+        </button>
+        <button type="submit" style={S.btn('primary')}>Add</button>
+      </form>
+      {showLabels && (
+        <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginTop:'8px',paddingTop:'8px',
+          borderTop:'1px solid var(--border)'}}>
+          {labels.map(l => (
+            <button key={l.name} onClick={() => toggleLabel(l.name)}
+              style={{...S.label(selectedLabels.includes(l.name) ? 'var(--bg-accent-dim)' : labelColor(l.name)),
+                cursor:'pointer', border: selectedLabels.includes(l.name) ? '1px solid var(--bg-accent)' : '1px solid transparent'}}>
+              @{l.name}
             </button>
-          );
-        })}
-        {areas.map(a=>{
-          const isOpen=!collapsed.has(a.id);
-          const aProjects=projects.filter(p=>p.areaId===a.id&&p.status==='active');
-          return(
-            <div key={a.id}>
-              <div style={{display:'flex',alignItems:'center',padding:'8px 4px 3px 4px',gap:2}}>
-                <button onClick={()=>toggleCollapse(a.id)} style={{background:'none',border:'none',cursor:'pointer',color:'#AEAEB2',fontSize:11,padding:'2px 4px',lineHeight:1,flexShrink:0,transition:'transform .15s',transform:isOpen?'rotate(90deg)':'rotate(0deg)'}}>▶</button>
-                <button onClick={()=>{setView(`area:${a.id}`);setTagFilter(null);setSidebarOpen(false);}}
-                  style={{flex:1,background:'none',border:'none',cursor:'pointer',textAlign:'left',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:view===`area:${a.id}`&&!tagFilter?'#4B8EF7':'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em',padding:'2px 0'}}
-                >{a.name}</button>
-                <button onClick={()=>onEditArea(a.id)} style={{background:'none',border:'none',color:'#D1D1D6',fontSize:13,cursor:'pointer',padding:'2px 3px',lineHeight:1,opacity:0}} className="area-menu-btn">⋯</button>
-                <button onClick={()=>onNewProject(a.id)} style={{background:'none',border:'none',color:'#D1D1D6',fontSize:16,cursor:'pointer',padding:'2px 3px',lineHeight:1,opacity:0}} className="area-menu-btn">＋</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Task Item ─────────────────────────────────────────────────────
+function TaskItem({ task, onComplete, projects, onSelect, selected }) {
+  const isOverdue = task.due?.date && task.due.date < new Date().toISOString().slice(0,10);
+  const project = projects.find(p => p.id === task.project_id);
+  const daysOld = Math.floor((Date.now() - new Date(task.created_at)) / 86400000);
+
+  return (
+    <div style={{...S.taskItem(task.priority), background: selected ? 'var(--bg-hover)' : 'transparent'}}
+      onClick={() => onSelect?.(task)}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}>
+      <div style={S.checkbox(false)} onClick={e => { e.stopPropagation(); onComplete(task.id); }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--green)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-hover)'}>
+      </div>
+      <div style={S.taskContent}>
+        <div style={S.taskTitle(false)}>{task.content}</div>
+        <div style={S.taskMeta}>
+          {project && (
+            <span style={S.label()}>
+              {project.name}
+            </span>
+          )}
+          {task.labels.map(l => (
+            <span key={l} style={S.label(labelColor(l))}>@{l}</span>
+          ))}
+          {task.due?.date && (
+            <span style={S.dueDate(isOverdue)}>
+              {isOverdue ? '⚠ ' : ''}{task.due.date}
+            </span>
+          )}
+          {daysOld > 14 && !task.due && (
+            <span style={{fontSize:'11px',color:'var(--text-tertiary)',fontFamily:'var(--font-mono)'}}>
+              {daysOld}d old
+            </span>
+          )}
+        </div>
+        {task.description && (
+          <div style={{fontSize:'12px',color:'var(--text-tertiary)',marginTop:'4px',
+            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {task.description}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Task Detail Panel ─────────────────────────────────────────────
+function TaskDetail({ task, onClose, onComplete, onUpdate, projects, labels, claudeKey }) {
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [fuzzyType, setFuzzyType] = useState('vague');
+  const project = projects.find(p => p.id === task.project_id);
+
+  async function handleClarify() {
+    setAiLoading(true); setAiResponse('');
+    try {
+      const response = await ClaudeAPI.clarify(task.content, fuzzyType);
+      setAiResponse(response);
+    } catch(e) { setAiResponse(`Error: ${e.message}`); }
+    setAiLoading(false);
+  }
+
+  async function handleToggleLabel(label) {
+    const newLabels = task.labels.includes(label) 
+      ? task.labels.filter(l => l !== label)
+      : [...task.labels, label];
+    await onUpdate(task.id, { labels: newLabels });
+  }
+
+  return (
+    <div style={{width:'380px',minWidth:'380px',borderLeft:'1px solid var(--border)',
+      background:'var(--bg-surface)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)',
+        display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+        <span style={{fontSize:'12px',fontWeight:500,color:'var(--text-tertiary)',textTransform:'uppercase',
+          letterSpacing:'0.5px'}}>Task detail</span>
+        <button onClick={onClose} style={{color:'var(--text-tertiary)',fontSize:'18px',
+          lineHeight:1,padding:'4px'}}>×</button>
+      </div>
+      
+      <div style={{flex:1,overflowY:'auto',padding:'20px'}}>
+        <div style={{fontSize:'15px',fontWeight:500,marginBottom:'16px',lineHeight:1.4}}>
+          {task.content}
+        </div>
+        
+        {task.description && (
+          <div style={{fontSize:'13px',color:'var(--text-secondary)',marginBottom:'16px',
+            lineHeight:1.6,whiteSpace:'pre-wrap'}}>{task.description}</div>
+        )}
+        
+        <div style={{marginBottom:'16px'}}>
+          <div style={{fontSize:'11px',fontWeight:600,color:'var(--text-tertiary)',
+            textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'8px'}}>Project</div>
+          <span style={S.label()}>{project?.name || 'Inbox'}</span>
+        </div>
+        
+        <div style={{marginBottom:'16px'}}>
+          <div style={{fontSize:'11px',fontWeight:600,color:'var(--text-tertiary)',
+            textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'8px'}}>Labels</div>
+          <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>
+            {labels.map(l => (
+              <button key={l.name} onClick={() => handleToggleLabel(l.name)}
+                style={{...S.label(task.labels.includes(l.name) ? (labelColor(l.name) || 'var(--bg-accent-dim)') : null),
+                  cursor:'pointer',
+                  border: task.labels.includes(l.name) ? '1px solid var(--bg-accent)' : '1px solid var(--border)',
+                  opacity: task.labels.includes(l.name) ? 1 : 0.6}}>
+                @{l.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {task.due && (
+          <div style={{marginBottom:'16px'}}>
+            <div style={{fontSize:'11px',fontWeight:600,color:'var(--text-tertiary)',
+              textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'8px'}}>Due date</div>
+            <span style={{fontSize:'13px',fontFamily:'var(--font-mono)',
+              color: task.due.date < new Date().toISOString().slice(0,10) ? 'var(--red)' : 'var(--text-secondary)'}}>
+              {task.due.date}{task.due.is_recurring ? ' (recurring)' : ''}
+            </span>
+          </div>
+        )}
+
+        <div style={{fontSize:'11px',color:'var(--text-tertiary)',fontFamily:'var(--font-mono)',marginBottom:'20px'}}>
+          Created {new Date(task.created_at).toLocaleDateString()} ({Math.floor((Date.now() - new Date(task.created_at)) / 86400000)}d ago)
+        </div>
+
+        <div style={{display:'flex',gap:'8px',marginBottom:'20px'}}>
+          <button style={S.btn('primary')} onClick={() => onComplete(task.id)}>
+            Complete
+          </button>
+          <a href={task.url} target="_blank" rel="noopener noreferrer"
+            style={{...S.btn(),textDecoration:'none',display:'inline-flex',alignItems:'center'}}>
+            Open in Todoist
+          </a>
+        </div>
+
+        {claudeKey && (
+          <div style={{borderTop:'1px solid var(--border)',paddingTop:'16px'}}>
+            <div style={{fontSize:'11px',fontWeight:600,color:'var(--text-accent)',
+              textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'10px'}}>
+              AI Clarify
+            </div>
+            <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginBottom:'10px'}}>
+              {['vague','avoidance','tangled','decision','research','notmine'].map(ft => (
+                <button key={ft} onClick={() => setFuzzyType(ft)}
+                  style={{...S.label(ft === fuzzyType ? 'var(--bg-accent-dim)' : null),
+                    cursor:'pointer',border: ft === fuzzyType ? '1px solid var(--bg-accent)' : '1px solid var(--border)'}}>
+                  {ft}
+                </button>
+              ))}
+            </div>
+            <button style={S.btn('primary')} onClick={handleClarify} disabled={aiLoading}>
+              {aiLoading ? 'Thinking...' : `Clarify as ${fuzzyType}`}
+            </button>
+            {aiResponse && (
+              <div style={{marginTop:'12px',fontSize:'13px',color:'var(--text-secondary)',
+                lineHeight:1.7,whiteSpace:'pre-wrap',background:'var(--bg-elevated)',
+                padding:'12px',borderRadius:'8px',maxHeight:'300px',overflowY:'auto'}}>
+                {aiResponse}
               </div>
-              {isOpen&&aProjects.map(p=>{
-                const id=`project:${p.id}`;const active=view===id&&!tagFilter;
-                const n=tasks.filter(t=>t.projectId===p.id&&!t.done).length;
-                return(
-                  <button key={p.id} className={`nav-btn${active?' active':''}`} onClick={()=>goTo(id)} style={{background:active?`${p.color||'#4B8EF7'}18`:undefined,paddingLeft:28}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:p.color||'#4B8EF7',flexShrink:0}}/>
-                    <span className="lbl" style={{color:active?p.color||'#4B8EF7':'#1C1C1E',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:13}}>{p.title}</span>
-                    {n>0&&<span className="cnt">{n}</span>}
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ──────────────────────────────────────────────────────
+function App() {
+  const [authed, setAuthed] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [labels, setLabels] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [view, setView] = useState('next');
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [claudeKey, setClaudeKey] = useState('');
+  const [lastRefresh, setLastRefresh] = useState(null);
+
+  // Check saved credentials
+  useEffect(() => {
+    const tk = localStorage.getItem('gtd_todoist_key');
+    const ck = localStorage.getItem('gtd_claude_key');
+    if (tk) {
+      TodoistAPI.setToken(tk);
+      if (ck) { ClaudeAPI.setKey(ck); setClaudeKey(ck); }
+      setAuthed(true);
+    }
+  }, []);
+
+  function handleSetup(todoistKey, claudeApiKey) {
+    localStorage.setItem('gtd_todoist_key', todoistKey);
+    if (claudeApiKey) {
+      localStorage.setItem('gtd_claude_key', claudeApiKey);
+      ClaudeAPI.setKey(claudeApiKey);
+      setClaudeKey(claudeApiKey);
+    }
+    TodoistAPI.setToken(todoistKey);
+    setAuthed(true);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('gtd_todoist_key');
+    localStorage.removeItem('gtd_claude_key');
+    setAuthed(false);
+    setTasks([]); setProjects([]); setSections([]); setLabels([]);
+  }
+
+  // Fetch data
+  const fetchAll = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const [t, p, s, l] = await Promise.all([
+        TodoistAPI.getTasks(), TodoistAPI.getProjects(),
+        TodoistAPI.getSections(), TodoistAPI.getLabels()
+      ]);
+      setTasks(t); setProjects(p); setSections(s); setLabels(l);
+      setLastRefresh(new Date());
+    } catch(e) {
+      setError(e.message);
+      if (e.message.includes('403') || e.message.includes('401')) handleLogout();
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { if (authed) fetchAll(); }, [authed, fetchAll]);
+
+  // Auto-refresh every 2 minutes
+  useEffect(() => {
+    if (!authed) return;
+    const interval = setInterval(fetchAll, 120000);
+    return () => clearInterval(interval);
+  }, [authed, fetchAll]);
+
+  // Task actions
+  async function handleComplete(id) {
+    try {
+      await TodoistAPI.completeTask(id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+      if (selectedTask?.id === id) setSelectedTask(null);
+    } catch(e) { setError(e.message); }
+  }
+
+  async function handleUpdate(id, data) {
+    try {
+      const updated = await TodoistAPI.updateTask(id, data);
+      setTasks(prev => prev.map(t => t.id === id ? updated : t));
+      if (selectedTask?.id === id) setSelectedTask(updated);
+    } catch(e) { setError(e.message); }
+  }
+
+  async function handleAdd(data) {
+    try {
+      const newTask = await TodoistAPI.createTask(data);
+      setTasks(prev => [newTask, ...prev]);
+    } catch(e) { setError(e.message); }
+  }
+
+  // Detect person labels for agenda views
+  const personLabels = useMemo(() => {
+    const allLabels = new Set();
+    tasks.forEach(t => t.labels.forEach(l => { if (isPersonLabel(l)) allLabels.add(l); }));
+    return [...allLabels].sort();
+  }, [tasks]);
+
+  // Current view
+  const isAgenda = view.startsWith('agenda:');
+  const agendaPerson = isAgenda ? view.slice(7) : null;
+
+  const filteredTasks = useMemo(() => {
+    if (view === 'all_agendas') {
+      return tasks.filter(t => t.labels.some(l => isPersonLabel(l)));
+    }
+    if (isAgenda) {
+      return tasks.filter(t => t.labels.includes(agendaPerson));
+    }
+    const viewDef = VIEWS[view];
+    if (!viewDef) return tasks;
+    return tasks.filter(viewDef.filter);
+  }, [tasks, view, isAgenda, agendaPerson]);
+
+  // Group tasks for agenda views
+  const groupedTasks = useMemo(() => {
+    if (view === 'all_agendas') {
+      const groups = {};
+      filteredTasks.forEach(t => {
+        t.labels.filter(isPersonLabel).forEach(l => {
+          if (!groups[l]) groups[l] = [];
+          groups[l].push(t);
+        });
+      });
+      return Object.entries(groups).sort(([a],[b]) => a.localeCompare(b));
+    }
+    if (view === 'waiting') {
+      const withPerson = [];
+      const withoutPerson = [];
+      filteredTasks.forEach(t => {
+        if (t.labels.some(isPersonLabel)) withPerson.push(t);
+        else withoutPerson.push(t);
+      });
+      const groups = [];
+      if (withPerson.length > 0) {
+        const personGroups = {};
+        withPerson.forEach(t => {
+          const person = t.labels.find(isPersonLabel) || 'Other';
+          if (!personGroups[person]) personGroups[person] = [];
+          personGroups[person].push(t);
+        });
+        Object.entries(personGroups).sort(([a],[b]) => a.localeCompare(b))
+          .forEach(([k,v]) => groups.push([`Waiting on ${k}`, v]));
+      }
+      if (withoutPerson.length > 0) groups.push(['Waiting (general)', withoutPerson]);
+      return groups;
+    }
+    return null;
+  }, [filteredTasks, view]);
+
+  const viewName = isAgenda ? `@${agendaPerson}` 
+    : view === 'all_agendas' ? 'All agendas'
+    : VIEWS[view]?.name || view;
+
+  if (!authed) return <SetupScreen onSave={handleSetup} />;
+
+  return (
+    <div style={S.app}>
+      {/* Sidebar */}
+      <div style={{...S.sidebar, ...(sidebarCollapsed ? S.sidebarCollapsed : {})}}>
+        <div style={S.sidebarHeader}>
+          <span style={S.logo}>GTD</span>
+          <button onClick={() => setSidebarCollapsed(true)}
+            style={{color:'var(--text-tertiary)',fontSize:'16px'}}>‹</button>
+        </div>
+        
+        <div style={{flex:1,overflowY:'auto'}}>
+          {/* Core views */}
+          <div style={S.sidebarSection}>
+            <div style={S.sidebarLabel}>Views</div>
+            {Object.entries(VIEWS).map(([key, v]) => {
+              const count = tasks.filter(v.filter).length;
+              return (
+                <button key={key} style={S.navItem(view === key)} onClick={() => setView(key)}>
+                  <span style={S.navIcon}>{v.icon}</span>
+                  <span>{v.name}</span>
+                  {count > 0 && <span style={S.navCount}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Agenda views */}
+          {personLabels.length > 0 && (
+            <div style={S.sidebarSection}>
+              <div style={S.sidebarLabel}>Agendas</div>
+              <button style={S.navItem(view === 'all_agendas')} onClick={() => setView('all_agendas')}>
+                <span style={S.navIcon}>◈</span>
+                <span>All agendas</span>
+                <span style={S.navCount}>
+                  {tasks.filter(t => t.labels.some(isPersonLabel)).length}
+                </span>
+              </button>
+              {personLabels.map(p => {
+                const count = tasks.filter(t => t.labels.includes(p)).length;
+                return (
+                  <button key={p} style={S.navItem(view === `agenda:${p}`)} 
+                    onClick={() => setView(`agenda:${p}`)}>
+                    <span style={S.navIcon}>◇</span>
+                    <span>@{p}</span>
+                    {count > 0 && <span style={S.navCount}>{count}</span>}
                   </button>
                 );
               })}
-              {isOpen&&aProjects.length===0&&<div style={{padding:'4px 12px 4px 28px',fontSize:11,color:'#C7C7CC',fontFamily:"'DM Mono',monospace",fontStyle:'italic'}}>No projects</div>}
             </div>
-          );
-        })}
-      </div>
-      <div style={{padding:'8px',borderTop:'1px solid #F2F2F7'}}>
-        <button onClick={()=>onNewProject(null)} className="nav-btn" style={{color:'#4B8EF7',fontSize:13}}>
-          <span style={{fontSize:18}}>＋</span><span style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>New Project</span>
-        </button>
-        <button onClick={onNewArea} className="nav-btn" style={{color:'#6B6B6B',fontSize:13}}>
-          <span style={{fontSize:16}}>◻</span><span style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>New Area</span>
-        </button>
-      </div>
-    </div>
-  );
-}
+          )}
 
-
-// ── Today View (with This Evening) ───────────────────────────────────────────
-function TodayView({tasks,projects,onComplete,onUpdate,onDelete,onTagClick,onAddTask,areas,apiKey}){
-  const today=todayStr();
-  const todayTasks=tasks.filter(t=>t.section!=='evening');
-  const eveningTasks=tasks.filter(t=>t.section==='evening');
-  const sharedProps={projects,areas,onComplete,onUpdate,onDelete,apiKey,onTagClick};
-  return(
-    <div>
-      {todayTasks.length===0&&eveningTasks.length===0&&(
-        <div style={{textAlign:'center',padding:'48px 20px'}}>
-          <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>Nothing scheduled for today.</p>
-        </div>
-      )}
-      {todayTasks.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} showProject {...sharedProps}/>)}
-      <NewTaskRow onAdd={f=>onAddTask({...f,section:'inbox',when:today})} placeholder="Add to Today…" section="inbox" when={today}/>
-      {/* This Evening */}
-      <div style={{margin:'16px 0 0',borderTop:'1px solid #F2F2F7',padding:'14px 20px 4px',display:'flex',alignItems:'center',gap:8}}>
-        <span style={{fontSize:14}}>🌙</span>
-        <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>This Evening</span>
-      </div>
-      {eveningTasks.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} showProject {...sharedProps}/>)}
-      {eveningTasks.length===0&&<div style={{padding:'6px 20px 10px',fontSize:13,color:'#C7C7CC',fontFamily:"'Lora',serif",fontStyle:'italic'}}>Nothing planned for this evening.</div>}
-      <NewTaskRow onAdd={f=>onAddTask({...f,section:'evening',when:today})} placeholder="Add to This Evening…" section="evening" when={today}/>
-    </div>
-  );
-}
-
-// ── Logbook View ──────────────────────────────────────────────────────────────
-function LogbookView({tasks,projects}){
-  const done=tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
-  const groups={};
-  done.forEach(t=>{const d=(t.doneAt||t.createdAt||'').slice(0,10);if(!groups[d])groups[d]=[];groups[d].push(t);});
-  if(!done.length)return<div style={{textAlign:'center',padding:'60px 20px'}}><p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>Nothing completed yet.</p></div>;
-  return(
-    <div>
-      {Object.entries(groups).map(([date,ts])=>(
-        <div key={date}>
-          <div style={{padding:'16px 20px 4px',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>
-            {new Date(date+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}
+          {/* Projects */}
+          <div style={S.sidebarSection}>
+            <div style={S.sidebarLabel}>Projects</div>
+            {projects.map(p => {
+              const count = tasks.filter(t => t.project_id === p.id).length;
+              return (
+                <button key={p.id} style={S.navItem(view === `project:${p.id}`)}
+                  onClick={() => setView(`project:${p.id}`)}>
+                  <span style={{...S.navIcon,fontSize:'10px'}}>●</span>
+                  <span>{p.name}</span>
+                  {count > 0 && <span style={S.navCount}>{count}</span>}
+                </button>
+              );
+            })}
           </div>
-          {ts.map(t=>{
-            const p=projects.find(x=>x.id===t.projectId);
-            return(
-              <div key={t.id} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 20px',opacity:.65}}>
-                <div style={{width:20,height:20,borderRadius:'50%',background:p?.color||'#34C759',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <svg width="11" height="9" viewBox="0 0 12 10"><polyline points="1,5 4.5,8.5 11,1" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </div>
-                <div>
-                  <div style={{fontSize:14,fontFamily:"'Lora',serif",color:'#1C1C1E'}}>{t.title}</div>
-                  {p&&<div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:p.color||'#AEAEB2'}}>{p.title}</div>}
-                </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:'12px 16px',borderTop:'1px solid var(--border)',fontSize:'11px',
+          color:'var(--text-tertiary)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span>{lastRefresh ? `Synced ${lastRefresh.toLocaleTimeString()}` : ''}</span>
+          <button onClick={handleLogout} style={{fontSize:'11px',color:'var(--text-tertiary)'}}>
+            Logout
+          </button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={S.main}>
+        {/* Topbar */}
+        <div style={S.topbar}>
+          {sidebarCollapsed && (
+            <button onClick={() => setSidebarCollapsed(false)}
+              style={{color:'var(--text-tertiary)',fontSize:'16px',marginRight:'4px'}}>›</button>
+          )}
+          <span style={S.topbarTitle}>{viewName}</span>
+          <span style={S.topbarCount}>{filteredTasks.length} tasks</span>
+          <div style={{flex:1}} />
+          <button style={S.btn()} onClick={fetchAll} disabled={loading}>
+            {loading ? '↻ Syncing...' : '↻ Refresh'}
+          </button>
+        </div>
+
+        {error && (
+          <div style={{padding:'8px 24px',fontSize:'12px',color:'var(--red)',
+            background:'var(--red-dim)'}}>
+            {error}
+            <button onClick={() => setError('')} style={{marginLeft:'8px',color:'var(--red)'}}>×</button>
+          </div>
+        )}
+
+        {/* Task list */}
+        <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+          <div style={S.taskList}>
+            {filteredTasks.length === 0 && !loading && (
+              <div style={S.emptyState}>
+                {view === 'inbox' ? 'Inbox is empty — nicely done' 
+                  : view === 'overdue' ? 'Nothing overdue — you\'re on track'
+                  : view === 'stale' ? 'No stale items — system is healthy'
+                  : 'No tasks match this view'}
               </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Upcoming View ─────────────────────────────────────────────────────────────
-function UpcomingView({tasks,projects,onUpdate,onComplete,onDelete,apiKey,onTagClick}){
-  const upcoming=tasks.filter(t=>!t.done&&t.when&&t.when>todayStr()).sort((a,b)=>a.when.localeCompare(b.when));
-  const groups={};
-  upcoming.forEach(t=>{if(!groups[t.when])groups[t.when]=[];groups[t.when].push(t);});
-  if(!upcoming.length)return<div style={{textAlign:'center',padding:'60px 20px'}}><p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>Nothing upcoming.</p></div>;
-  return(
-    <div>
-      {Object.entries(groups).map(([date,ts])=>(
-        <div key={date}>
-          <div style={{padding:'16px 20px 4px',fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:600,color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>
-            {new Date(date+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}
-          </div>
-          {ts.map(t=><TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} projects={projects} areas={areas} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} showProject apiKey={apiKey} onTagClick={onTagClick}/>)}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Main App ──────────────────────────────────────────────────────────────────
-function App(){
-  const [tasks,setTasksRaw]       =useState(()=>ls.get(SK.tasks,[]));
-  const [projects,setProjectsRaw] =useState(()=>ls.get(SK.projects,[]));
-  const [areas,setAreasRaw]       =useState(()=>ls.get(SK.areas,[]));
-  const [headings,setHeadingsRaw] =useState(()=>ls.get(SK.headings,[]));
-  const [settings,setSettingsRaw] =useState(()=>ls.get(SK.settings,{apiKey:'',googleClientId:''}));
-  const [view,setView]            =useState('inbox');
-  const [sheet,setSheet]          =useState(null);
-  const [newProjectAreaId,setNewProjectAreaId]=useState(null);
-  const [editAreaId,setEditAreaId]=useState(null);
-  const [newProjectForConvert,setNewProjectForConvert]=useState(null);
-  const [tagFilter,setTagFilter]  =useState(null);
-  const [searchQuery,setSearchQuery]=useState('');
-  const [searchFocused,setSearchFocused]=useState(false);
-  const [sidebarOpen,setSidebarOpen]=useState(false);
-  const [driveConnected,setDriveCon]=useState(false);
-  const [syncStatus,setSyncSt]    =useState('offline');
-  const [lastSync,setLastSync]    =useState(null);
-  const saveRef=useRef(null);
-  const apiKey=settings.apiKey||'';
-
-  // ── Persist + Drive ──
-  const queueSave=useCallback((t,p,a,h)=>{
-    if(!driveConnected)return;
-    clearTimeout(saveRef.current);
-    saveRef.current=setTimeout(async()=>{
-      setSyncSt('syncing');
-      try{
-        await saveToDrive({tasks:t??ls.get(SK.tasks,[]),projects:p??ls.get(SK.projects,[]),areas:a??ls.get(SK.areas,[]),headings:h??ls.get(SK.headings,[]),updatedAt:new Date().toISOString()});
-        setSyncSt('idle');setLastSync(new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
-      }catch(e){console.error(e);setSyncSt('error');}
-    },1500);
-  },[driveConnected]);
-
-  const setTasks   =fn=>{const n=typeof fn==='function'?fn(tasks):fn;setTasksRaw(n);ls.set(SK.tasks,n);queueSave(n,null,null,null);};
-  const setProjects=fn=>{const n=typeof fn==='function'?fn(projects):fn;setProjectsRaw(n);ls.set(SK.projects,n);queueSave(null,n,null,null);};
-  const setAreas   =fn=>{const n=typeof fn==='function'?fn(areas):fn;setAreasRaw(n);ls.set(SK.areas,n);queueSave(null,null,n,null);};
-  const setHeadings=fn=>{const n=typeof fn==='function'?fn(headings):fn;setHeadingsRaw(n);ls.set(SK.headings,n);queueSave(null,null,null,n);};
-  const setSettings=s=>{setSettingsRaw(s);ls.set(SK.settings,s);};
-
-  const initTC=useCallback((cid)=>{
-    if(!window.google){setTimeout(()=>initTC(cid),500);return;}
-    tokenClient=window.google.accounts.oauth2.initTokenClient({
-      client_id:cid,scope:DRIVE_SCOPE,
-      callback:async resp=>{
-        if(resp.error){setSyncSt('error');return;}
-        gToken=resp.access_token;setDriveCon(true);setSyncSt('syncing');
-        try{
-          const data=await loadFromDrive();
-          if(data){
-            if(data.tasks){setTasksRaw(data.tasks);ls.set(SK.tasks,data.tasks);}
-            if(data.projects){setProjectsRaw(data.projects);ls.set(SK.projects,data.projects);}
-            if(data.areas){setAreasRaw(data.areas);ls.set(SK.areas,data.areas);}
-            if(data.headings){setHeadingsRaw(data.headings);ls.set(SK.headings,data.headings);}
-          }else{
-            await saveToDrive({tasks:ls.get(SK.tasks,[]),projects:ls.get(SK.projects,[]),areas:ls.get(SK.areas,[]),headings:ls.get(SK.headings,[]),updatedAt:new Date().toISOString()});
-          }
-          setSyncSt('idle');setLastSync(new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
-        }catch(e){console.error(e);setSyncSt('error');}
-      }
-    });
-  },[]);
-  const connectDrive=useCallback(cid=>{const c=cid||settings.googleClientId;if(!c){setSheet('settings');return;}initTC(c);setTimeout(()=>{if(tokenClient)tokenClient.requestAccessToken();},600);},[settings.googleClientId,initTC]);
-  const disconnectDrive=()=>{gToken=null;driveFileId=null;tokenClient=null;setDriveCon(false);setSyncSt('offline');};
-
-  // ── Task ops ──
-  const addTask=f=>{
-    const t={id:uid(),title:f.title,notes:f.notes||'',projectId:f.projectId||null,areaId:f.areaId||null,headingId:f.headingId||null,section:f.section||'inbox',when:f.when||null,deadline:f.deadline||null,tags:f.tags||[],checklist:f.checklist||[],done:false,doneAt:null,createdAt:new Date().toISOString(),updatedAt:null};
-    setTasks(ts=>[t,...ts]);return t;
-  };
-  const addMany=items=>{
-    const newT=items.map(f=>({id:uid(),title:f.title,notes:f.notes||'',projectId:null,areaId:null,headingId:null,section:f.section||'inbox',when:f.when||null,deadline:f.deadline||null,tags:[],checklist:[],done:false,doneAt:null,createdAt:new Date().toISOString(),updatedAt:null}));
-    setTasks(ts=>[...newT,...ts]);
-  };
-  const updateTask=upd=>setTasks(ts=>ts.map(t=>t.id===upd.id?{...upd,updatedAt:new Date().toISOString()}:t));
-  const completeTask=id=>setTasks(ts=>ts.map(t=>t.id===id?{...t,done:true,doneAt:new Date().toISOString()}:t));
-  const deleteTask=id=>setTasks(ts=>ts.filter(t=>t.id!==id));
-
-  // ── Project ops ──
-  const addProject=(fields)=>{
-    const p={id:uid(),title:fields.title,areaId:fields.areaId||null,color:fields.color||COLORS[0],notes:'',status:'active',createdAt:new Date().toISOString()};
-    setProjects(ps=>[...ps,p]);
-    if(fields.plan){
-      let newH=[],newT=[];
-      fields.plan.forEach(sec=>{
-        let hId=null;
-        if(sec.heading){hId=uid();newH.push({id:hId,projectId:p.id,title:sec.heading,createdAt:new Date().toISOString()});}
-        sec.tasks.forEach(title=>newT.push({id:uid(),title,notes:'',projectId:p.id,areaId:fields.areaId||null,headingId:hId,section:'anytime',when:null,deadline:null,tags:[],checklist:[],done:false,doneAt:null,createdAt:new Date().toISOString(),updatedAt:null}));
-      });
-      if(newH.length)setHeadings(hs=>[...hs,...newH]);
-      if(newT.length)setTasks(ts=>[...ts,...newT]);
-    }
-    setView(`project:${p.id}`);
-    setSheet(null);
-  };
-  const addArea=f=>{setAreas(as=>[...as,{id:uid(),name:f.name,createdAt:new Date().toISOString()}]);};
-  const updateArea=upd=>setAreas(as=>as.map(a=>a.id===upd.id?{...a,...upd}:a));
-  const deleteArea=id=>{
-    setAreas(as=>as.filter(a=>a.id!==id));
-    // Detach projects from area (keep them as standalone)
-    setProjects(ps=>ps.map(p=>p.areaId===id?{...p,areaId:null}:p));
-    if(view===`area:${id}`) setView('inbox');
-  };
-  const updateProject=upd=>{
-    setProjectsRaw(ps=>{
-      const next=ps.map(p=>p.id===upd.id?{...p,...upd}:p);
-      ls.set(SK.projects,next);
-      queueSave(null,next,null,null);
-      return next;
-    });
-  };
-  const deleteProject=id=>{
-    setProjects(ps=>ps.filter(p=>p.id!==id));
-    // Move project tasks to inbox
-    setTasks(ts=>ts.map(t=>t.projectId===id?{...t,projectId:null,headingId:null,section:'inbox'}:t));
-    setHeadings(hs=>hs.filter(h=>h.projectId!==id));
-    setView('inbox');
-  };
-  const addHeading=projectId=>{setHeadings(hs=>[...hs,{id:uid(),projectId,title:'New Heading',createdAt:new Date().toISOString()}]);};
-  const convertToProject=task=>{
-    const p={id:uid(),title:task.title,areaId:null,color:COLORS[0],notes:task.notes||'',status:'active',createdAt:new Date().toISOString()};
-    // Use raw setter with callback to guarantee fresh state, then persist manually
-    setProjectsRaw(prev=>{
-      const next=[...prev,p];
-      ls.set(SK.projects,next);
-      return next;
-    });
-    // Remove original task
-    setTasksRaw(prev=>{
-      const next=prev.filter(t=>t.id!==task.id);
-      ls.set(SK.tasks,next);
-      return next;
-    });
-    // Navigate after state is committed
-    setNewProjectForConvert(p.id);
-    setTimeout(()=>setView(`project:${p.id}`),0);
-  };
-
-  // ── View logic ──
-  const today=todayStr();
-  const isProj=view.startsWith('project:');
-  const projId=isProj?view.replace('project:',''):null;
-  const curProj=projId?projects.find(p=>p.id===projId):null;
-  const isArea=view.startsWith('area:');
-  const areaId=isArea?view.replace('area:',''):null;
-  const curArea=areaId?areas.find(a=>a.id===areaId):null;
-  const editAreaObj=editAreaId?areas.find(a=>a.id===editAreaId):null;
-
-  const viewTasks=useMemo(()=>{
-    switch(view){
-      case 'inbox':    return tasks.filter(t=>!t.done&&t.section==='inbox');
-      case 'today':    return tasks.filter(t=>!t.done&&((t.when&&t.when<=today)||(t.deadline&&t.deadline<=today&&!t.when)));
-      case 'upcoming': return tasks.filter(t=>!t.done&&t.when&&t.when>today).sort((a,b)=>a.when.localeCompare(b.when));
-      case 'anytime':  return tasks.filter(t=>!t.done&&t.section==='anytime'&&!t.when&&!t.projectId);
-      case 'someday':  return tasks.filter(t=>!t.done&&t.section==='someday');
-      case 'logbook':  return tasks.filter(t=>t.done);
-      default:return[];
-    }
-  },[tasks,view,today]);
-
-  const VIEW_LABELS={inbox:'Inbox',today:'Today',upcoming:'Upcoming',anytime:'Anytime',someday:'Someday',logbook:'Logbook'};
-
-  // Search results
-  const searchResults=useMemo(()=>{
-    if(!searchQuery.trim())return null;
-    const q=searchQuery.toLowerCase();
-    return tasks.filter(t=>!t.done&&(t.title.toLowerCase().includes(q)||(t.notes||'').toLowerCase().includes(q)||(t.tags||[]).some(tag=>tag.toLowerCase().includes(q))));
-  },[tasks,searchQuery]);
-
-  // Tag filter results
-  const tagResults=useMemo(()=>{
-    if(!tagFilter)return null;
-    return tasks.filter(t=>!t.done&&(t.tags||[]).includes(tagFilter));
-  },[tasks,tagFilter]);
-  const syncColor={idle:'#34C759',syncing:'#FF9500',error:'#FF3B30',offline:'#C7C7CC'}[syncStatus]||'#C7C7CC';
-
-  const sharedListProps={projects,areas,onComplete:completeTask,onUpdate:updateTask,onDelete:deleteTask,showProject:true,apiKey,onTagClick:setTagFilter,onConvertToProject:convertToProject};
-
-  return(
-    <div className="shell">
-      {sidebarOpen&&<div className="mob-overlay" onClick={()=>setSidebarOpen(false)}/>}
-      <div className={`sidebar${sidebarOpen?' open':''}`}>
-        <Sidebar view={view} setView={setView} areas={areas} projects={projects} tasks={tasks}
-          onNewProject={(aId)=>{setNewProjectAreaId(aId||null);setSheet('newProject');}} onNewArea={()=>setSheet('newArea')} onEditArea={(aId)=>{setEditAreaId(aId);setSheet('editArea');}} setSidebarOpen={setSidebarOpen} tagFilter={tagFilter} setTagFilter={setTagFilter}
-        />
-      </div>
-      <div className="main">
-        {/* Top bar */}
-        <div style={{background:'#fff',borderBottom:'1px solid #E5E5EA',padding:'10px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-          <button className="hamburger" onClick={()=>setSidebarOpen(v=>!v)} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#6B6B6B',padding:'2px 6px',lineHeight:1}}>☰</button>
-          {searchQuery||searchFocused?(
-            <div style={{flex:1,display:'flex',alignItems:'center',gap:6,background:'#F2F2F7',borderRadius:9,padding:'6px 10px'}}>
-              <span style={{color:'#AEAEB2',fontSize:14}}>🔍</span>
-              <input autoFocus value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
-                onFocus={()=>setSearchFocused(true)}
-                onBlur={()=>{if(!searchQuery)setSearchFocused(false);}}
-                onKeyDown={e=>{if(e.key==='Escape'){setSearchQuery('');setSearchFocused(false);}}}
-                placeholder="Search tasks, projects…"
-                style={{flex:1,border:'none',background:'transparent',fontSize:14,fontFamily:"'Lora',serif",color:'#1C1C1E',padding:0}}
-              />
-              {searchQuery&&<span onClick={()=>{setSearchQuery('');setSearchFocused(false);}} style={{color:'#AEAEB2',cursor:'pointer',fontSize:16,lineHeight:1}}>×</span>}
-            </div>
-          ):(
-            <h2 style={{flex:1,margin:0,fontSize:20,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E',cursor:'text'}} onClick={()=>setSearchFocused(true)}>
-              {tagFilter?`#${tagFilter}`:curProj?curProj.title:curArea?curArea.name:VIEW_LABELS[view]||'Things'}
-            </h2>
-          )}
-          {tagFilter&&<button onClick={()=>setTagFilter(null)} style={{background:'#EBF3FF',border:'none',borderRadius:6,padding:'4px 10px',color:'#4B8EF7',fontSize:11,fontFamily:"'DM Mono',monospace",cursor:'pointer'}}>✕ clear</button>}
-          <div style={{display:'flex',alignItems:'center',gap:5}}>
-            {!searchQuery&&!searchFocused&&<button onClick={()=>setSearchFocused(true)} style={{background:'none',border:'none',fontSize:16,cursor:'pointer',color:'#AEAEB2',padding:'2px'}}>🔍</button>}
-            <div style={{width:7,height:7,borderRadius:'50%',background:syncColor}}/>
-            {!settings.apiKey&&<span style={{fontSize:11,color:'#FF3B30',fontFamily:"'DM Mono',monospace",cursor:'pointer'}} onClick={()=>setSheet('settings')}>⚠</span>}
-            <button onClick={()=>setSheet('settings')} style={{background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#AEAEB2',padding:'2px'}}>⚙</button>
-          </div>
-        </div>
-        {/* Content */}
-        <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
-          {isProj&&!curProj&&(
-            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'60vh',gap:16}}>
-              <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>Project not found.</p>
-              <button onClick={()=>setView('inbox')} style={{background:'#F2F2F7',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontFamily:"'DM Mono',monospace",color:'#6B6B6B',cursor:'pointer'}}>← Back to Inbox</button>
-            </div>
-          )}
-          {isProj&&curProj&&(
-            <ProjectView
-              project={curProj} tasks={tasks} headings={headings.filter(h=>h.projectId===projId)}
-              areas={areas} projects={projects} apiKey={apiKey}
-              onAddTask={addTask} onUpdateTask={updateTask} onCompleteTask={completeTask} onDeleteTask={deleteTask}
-              onAddHeading={addHeading} onUpdateHeading={h=>setHeadings(hs=>hs.map(x=>x.id===h.id?h:x))}
-              onUpdateProject={updateProject} onDeleteProject={deleteProject}
-              autoEdit={newProjectForConvert===projId}
-              onAutoEditDone={()=>setNewProjectForConvert(null)}
-            />
-          )}
-          {isArea&&curArea&&(
-            <AreaView
-              area={curArea} projects={projects} tasks={tasks} areas={areas} apiKey={apiKey}
-              onAddProject={f=>addProject({...f,areaId:curArea.id})}
-              onUpdateArea={updateArea} onDeleteArea={deleteArea}
-              onGoProject={id=>setView(`project:${id}`)}
-              onUpdateProject={updateProject} onDeleteProject={deleteProject}
-            />
-          )}
-          {(searchResults||tagResults)&&(
-            <div style={{padding:'16px 0 100px'}}>
-              <div style={{padding:'0 20px 14px',display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:'#AEAEB2',textTransform:'uppercase',letterSpacing:'.08em'}}>
-                  {searchResults?`${searchResults.length} result${searchResults.length!==1?'s':''}`:tagResults?`${tagResults.length} task${tagResults.length!==1?'s':''} tagged #${tagFilter}`:''}
-                </span>
-              </div>
-              {(searchResults||tagResults).map(t=>(
-                <TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} {...sharedListProps} onTagClick={setTagFilter}/>
-              ))}
-              {(searchResults||tagResults).length===0&&(
-                <div style={{textAlign:'center',padding:'48px 20px'}}>
-                  <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>No results found.</p>
-                </div>
-              )}
-            </div>
-          )}
-          {!searchResults&&!tagResults&&!isProj&&!isArea&&(
-            <div style={{padding:'24px 0 100px'}}>
-              <h1 style={{margin:'0 20px 18px',fontSize:28,fontFamily:"'Lora',serif",fontWeight:500,color:'#1C1C1E'}}>{VIEW_LABELS[view]}</h1>
-              {view==='logbook'&&<LogbookView tasks={tasks} projects={projects}/>}
-              {view==='upcoming'&&<UpcomingView tasks={viewTasks} projects={projects} onUpdate={updateTask} onComplete={completeTask} onDelete={deleteTask} apiKey={apiKey} onTagClick={setTagFilter}/>}
-              {view==='today'&&(
-                <TodayView tasks={viewTasks} projects={projects} {...sharedListProps} onTagClick={setTagFilter} onAddTask={addTask}/>
-              )}
-              {view!=='logbook'&&view!=='upcoming'&&view!=='today'&&(
-                <>
-                  {viewTasks.length===0&&view!=='inbox'&&view!=='anytime'&&(
-                    <div style={{textAlign:'center',padding:'48px 20px'}}>
-                      <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>
-                        {view==='someday'?'Nothing parked for someday.':'No items here.'}
-                      </p>
-                    </div>
-                  )}
-                  {viewTasks.map(t=>(
-                    <TaskRow key={t.id} task={t} project={projects.find(p=>p.id===t.projectId)} {...sharedListProps} onTagClick={setTagFilter}/>
+            )}
+            
+            {groupedTasks ? (
+              groupedTasks.map(([group, groupTasks]) => (
+                <div key={group}>
+                  <div style={S.groupHeader}>
+                    {group} ({groupTasks.length})
+                  </div>
+                  {groupTasks.map(t => (
+                    <TaskItem key={t.id} task={t} onComplete={handleComplete}
+                      projects={projects} onSelect={setSelectedTask}
+                      selected={selectedTask?.id === t.id} />
                   ))}
-                  {(view==='inbox'||view==='anytime')&&(
-                    <NewTaskRow onAdd={f=>addTask({...f,section:view})} placeholder="New To-Do" section={view}/>
-                  )}
-                </>
-              )}
-            </div>
+                </div>
+              ))
+            ) : (
+              filteredTasks.map(t => (
+                <TaskItem key={t.id} task={t} onComplete={handleComplete}
+                  projects={projects} onSelect={setSelectedTask}
+                  selected={selectedTask?.id === t.id} />
+              ))
+            )}
+          </div>
+
+          {/* Detail panel */}
+          {selectedTask && (
+            <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)}
+              onComplete={handleComplete} onUpdate={handleUpdate}
+              projects={projects} labels={labels} claudeKey={claudeKey} />
           )}
         </div>
-      </div>
 
-      {/* FABs */}
-      <div style={{position:'fixed',bottom:24,right:20,display:'flex',flexDirection:'column',gap:10,zIndex:5}}>
-        <button className="fab" style={{background:'#FF9500',boxShadow:'0 4px 16px rgba(255,149,0,.4)'}} onClick={()=>setSheet('dump')}>✦ Brain dump</button>
+        {/* Quick add */}
+        <QuickAdd onAdd={handleAdd} labels={labels} />
       </div>
-
-      {/* Sheets */}
-      {sheet==='settings'&&<Settings settings={settings} onSave={setSettings} driveConnected={driveConnected} onConnect={connectDrive} onDisconnect={disconnectDrive} onClose={()=>setSheet(null)}/>}
-      {sheet==='dump'&&<BrainDump apiKey={apiKey} onSaveAll={addMany} onClose={()=>setSheet(null)}/>}
-      {sheet==='newProject'&&<NewProjectSheet areas={areas} apiKey={apiKey} initialAreaId={newProjectAreaId} onSave={addProject} onClose={()=>setSheet(null)}/>}
-      {sheet==='newArea'&&<NewAreaSheet onSave={addArea} onClose={()=>setSheet(null)}/>}
-      {sheet==='editArea'&&editAreaObj&&<EditAreaSheet area={editAreaObj} onSave={upd=>{updateArea(upd);setSheet(null);}} onDelete={id=>{deleteArea(id);setSheet(null);}} onClose={()=>setSheet(null)}/>}
     </div>
   );
 }
 
-// ── CSS fix for desktop sidebar always visible ────────────────────────────────
-const desktopStyle=document.createElement('style');
-desktopStyle.textContent=`
-@media(min-width:661px){
-  .sidebar{transform:translateX(0)!important;}
-}`;
-document.head.appendChild(desktopStyle);
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
