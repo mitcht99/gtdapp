@@ -300,13 +300,20 @@ function SetupScreen({ onSave }) {
 
   async function handleTest() {
     if (!todoistKey.trim()) { setError('Todoist API token is required'); return; }
+    if (window.location.protocol === 'file:') {
+      setError('Cannot connect from a file:// URL — browsers block API requests from local files. Either serve this with "python -m http.server 8000" and open http://localhost:8000, or deploy to GitHub Pages.');
+      return;
+    }
     setTesting(true); setError('');
     try {
       TodoistAPI.setToken(todoistKey.trim());
       await TodoistAPI.getProjects();
       onSave(todoistKey.trim(), claudeKey.trim());
     } catch(e) {
-      setError(`Connection failed: ${e.message}`);
+      const msg = e.message === 'Failed to fetch' 
+        ? 'Network error — check your internet connection and that the API token is correct. If opening from a local file, serve via HTTP instead (python -m http.server 8000).'
+        : `Connection failed: ${e.message}`;
+      setError(msg);
     }
     setTesting(false);
   }
