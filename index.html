@@ -1356,7 +1356,14 @@ function App(){
     setProjects(ps=>ps.map(p=>p.areaId===id?{...p,areaId:null}:p));
     if(view===`area:${id}`) setView('inbox');
   };
-  const updateProject=upd=>setProjects(ps=>ps.map(p=>p.id===upd.id?{...p,...upd}:p));
+  const updateProject=upd=>{
+    setProjectsRaw(ps=>{
+      const next=ps.map(p=>p.id===upd.id?{...p,...upd}:p);
+      ls.set(SK.projects,next);
+      queueSave(null,next,null,null);
+      return next;
+    });
+  };
   const deleteProject=id=>{
     setProjects(ps=>ps.filter(p=>p.id!==id));
     // Move project tasks to inbox
@@ -1366,14 +1373,22 @@ function App(){
   };
   const addHeading=projectId=>{setHeadings(hs=>[...hs,{id:uid(),projectId,title:'New Heading',createdAt:new Date().toISOString()}]);};
   const convertToProject=task=>{
-    // Create a new project from the task
     const p={id:uid(),title:task.title,areaId:null,color:COLORS[0],notes:task.notes||'',status:'active',createdAt:new Date().toISOString()};
-    setProjects(ps=>[...ps,p]);
-    // Remove the original task (it becomes the project itself)
-    setTasks(ts=>ts.filter(t=>t.id!==task.id));
-    // Navigate to the new project and open edit sheet to let user pick area
-    setView(`project:${p.id}`);
+    // Use raw setter with callback to guarantee fresh state, then persist manually
+    setProjectsRaw(prev=>{
+      const next=[...prev,p];
+      ls.set(SK.projects,next);
+      return next;
+    });
+    // Remove original task
+    setTasksRaw(prev=>{
+      const next=prev.filter(t=>t.id!==task.id);
+      ls.set(SK.tasks,next);
+      return next;
+    });
+    // Navigate after state is committed
     setNewProjectForConvert(p.id);
+    setTimeout(()=>setView(`project:${p.id}`),0);
   };
 
   // ── View logic ──
@@ -1455,6 +1470,12 @@ function App(){
         </div>
         {/* Content */}
         <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+          {isProj&&!curProj&&(
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'60vh',gap:16}}>
+              <p style={{fontFamily:"'Lora',serif",fontStyle:'italic',fontSize:16,color:'#AEAEB2'}}>Project not found.</p>
+              <button onClick={()=>setView('inbox')} style={{background:'#F2F2F7',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontFamily:"'DM Mono',monospace",color:'#6B6B6B',cursor:'pointer'}}>← Back to Inbox</button>
+            </div>
+          )}
           {isProj&&curProj&&(
             <ProjectView
               project={curProj} tasks={tasks} headings={headings.filter(h=>h.projectId===projId)}
