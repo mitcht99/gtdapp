@@ -39,68 +39,116 @@ button{cursor:pointer;border:none;background:none}
 const {useState,useEffect,useCallback,useMemo,useRef,createContext,useContext} = React;
 
 // ─── Todoist API Layer ─────────────────────────────────────────────
+// Uses the Sync API for bulk reads (explicitly documented CORS support)
+// and REST v2 for individual task mutations
 const TodoistAPI = {
   token: null,
-  baseUrl: 'https://api.todoist.com/rest/v2',
   
   setToken(t) { this.token = t; },
   
-  headers() {
-    return { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' };
+  async _fetch(url, opts = {}) {
+    const headers = { 'Authorization': `Bearer ${this.token}`, ...opts.headers };
+    try {
+      const r = await fetch(url, { ...opts, headers });
+      if (r.status === 401 || r.status === 403) throw new Error(`Auth failed (${r.status}) — check your API token`);
+      if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`API error ${r.status}: ${t}`); }
+      if (r.status === 204) return null;
+      return r.json();
+    } catch(e) {
+      if (e.message.startsWith('Auth') || e.message.startsWith('API')) throw e;
+      throw new Error(`Network error — the browser blocked the request. Open DevTools (F12) → Console for details.`);
+    }
   },
-  
-  async getTasks() {
-    const r = await fetch(`${this.baseUrl}/tasks`, { headers: this.headers() });
-    if (!r.ok) throw new Error(`Failed to fetch tasks: ${r.status}`);
-    return r.json();
-  },
-  
-  async getProjects() {
-    const r = await fetch(`${this.baseUrl}/projects`, { headers: this.headers() });
-    if (!r.ok) throw new Error(`Failed to fetch projects: ${r.status}`);
-    return r.json();
-  },
-  
-  async getSections() {
-    const r = await fetch(`${this.baseUrl}/sections`, { headers: this.headers() });
-    if (!r.ok) throw new Error(`Failed to fetch sections: ${r.status}`);
-    return r.json();
-  },
-  
-  async getLabels() {
-    const r = await fetch(`${this.baseUrl}/labels`, { headers: this.headers() });
-    if (!r.ok) throw new Error(`Failed to fetch labels: ${r.status}`);
-    return r.json();
-  },
-  
-  async completeTask(id) {
-    const r = await fetch(`${this.baseUrl}/tasks/${id}/close`, {
-      method: 'POST', headers: this.headers()
+
+  // Sync API: single POST, returns all resources, confirmed CORS
+  async syncAll() {
+    const data = new URLSearchParams();
+    data.append('sync_token', '*');
+    data.append('resource_types', '["items","projects","sections","labels"]');
+    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: data.toString()
     });
-    if (!r.ok) throw new Error(`Failed to complete task: ${r.status}`);
+    // Sync API returns items (not tasks), map to REST-like shape
+    const tasks = (r.items || []).filter(i => !i.checked && !i.is_deleted).map(i => ({
+      id: i.id, content: i.content, description: i.description || '',
+      priority: i.priority, project_id: i.project_id, section_id: i.section_id,
+      parent_id: i.parent_id, labels: i.labels || [], order: i.child_order,
+      due: i.due, created_at: i.added_at,
+      url: `https://app.todoist.com/showTask?id=${i.id}`
+    }));
+    const projects = (r.projects || []).filter(p => !p.is_deleted && !p.is_archived);
+    const sections = (r.sections || []).filter(s => !s.is_deleted && !s.is_archived);
+    const labels = (r.labels || []).filter(l => !l.is_deleted);
+    return { tasks, projects, sections, labels };
+  },
+
+  // Test connection using Sync API
+  async testConnection() {
+    const data = new URLSearchParams();
+    data.append('sync_token', '*');
+    data.append('resource_types', '["user"]');
+    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: data.toString()
+    });
+    return r.user;
+  },
+  
+  // Write operations via Sync API commands (same endpoint, same CORS)
+  async _command(type, args) {
+    const uuid = crypto.randomUUID();
+    const data = new URLSearchParams();
+    data.append('commands', JSON.stringify([{ type, uuid, args }]));
+    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: data.toString()
+    });
+    if (r.sync_status && r.sync_status[uuid] !== 'ok') {
+      const err = r.sync_status[uuid];
+      throw new Error(`Command failed: ${typeof err === 'object' ? JSON.stringify(err) : err}`);
+    }
+    return r;
+  },
+
+  async completeTask(id) {
+    return this._command('item_close', { id });
   },
   
   async updateTask(id, data) {
-    const r = await fetch(`${this.baseUrl}/tasks/${id}`, {
-      method: 'POST', headers: this.headers(), body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error(`Failed to update task: ${r.status}`);
-    return r.json();
+    return this._command('item_update', { id, ...data });
   },
   
   async createTask(data) {
-    const r = await fetch(`${this.baseUrl}/tasks`, {
-      method: 'POST', headers: this.headers(), body: JSON.stringify(data)
+    const temp_id = crypto.randomUUID();
+    const uuid = crypto.randomUUID();
+    const args = { content: data.content };
+    if (data.project_id) args.project_id = data.project_id;
+    if (data.labels) args.labels = data.labels;
+    if (data.due_string) args.due = { string: data.due_string };
+    if (data.priority) args.priority = data.priority;
+    if (data.description) args.description = data.description;
+    
+    const params = new URLSearchParams();
+    params.append('commands', JSON.stringify([{ type: 'item_add', temp_id, uuid, args }]));
+    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
     });
-    if (!r.ok) throw new Error(`Failed to create task: ${r.status}`);
-    return r.json();
-  },
-
-  async reopenTask(id) {
-    const r = await fetch(`${this.baseUrl}/tasks/${id}/reopen`, {
-      method: 'POST', headers: this.headers()
-    });
-    if (!r.ok) throw new Error(`Failed to reopen task: ${r.status}`);
+    if (r.sync_status && r.sync_status[uuid] !== 'ok') {
+      throw new Error(`Create failed: ${JSON.stringify(r.sync_status[uuid])}`);
+    }
+    // Return a task-shaped object with the temp_id mapped to real id
+    const realId = r.temp_id_mapping?.[temp_id] || temp_id;
+    return { id: realId, content: args.content, description: args.description || '',
+      priority: args.priority || 1, project_id: args.project_id || null,
+      section_id: null, parent_id: null, labels: args.labels || [],
+      order: 0, due: null, created_at: new Date().toISOString(),
+      url: `https://app.todoist.com/showTask?id=${realId}` };
   }
 };
 
@@ -307,8 +355,8 @@ function SetupScreen({ onSave }) {
     setTesting(true); setError('');
     try {
       TodoistAPI.setToken(todoistKey.trim());
-      await TodoistAPI.getProjects();
-      onSave(todoistKey.trim(), claudeKey.trim());
+      const user = await TodoistAPI.testConnection();
+      onSave(todoistKey.trim(), claudeKey.trim(), user?.full_name);
     } catch(e) {
       const msg = e.message === 'Failed to fetch' 
         ? 'Network error — check your internet connection and that the API token is correct. If opening from a local file, serve via HTTP instead (python -m http.server 8000).'
@@ -612,7 +660,7 @@ function App() {
     }
   }, []);
 
-  function handleSetup(todoistKey, claudeApiKey) {
+  function handleSetup(todoistKey, claudeApiKey, userName) {
     localStorage.setItem('gtd_todoist_key', todoistKey);
     if (claudeApiKey) {
       localStorage.setItem('gtd_claude_key', claudeApiKey);
@@ -634,15 +682,13 @@ function App() {
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [t, p, s, l] = await Promise.all([
-        TodoistAPI.getTasks(), TodoistAPI.getProjects(),
-        TodoistAPI.getSections(), TodoistAPI.getLabels()
-      ]);
-      setTasks(t); setProjects(p); setSections(s); setLabels(l);
+      const data = await TodoistAPI.syncAll();
+      setTasks(data.tasks); setProjects(data.projects); 
+      setSections(data.sections); setLabels(data.labels);
       setLastRefresh(new Date());
     } catch(e) {
       setError(e.message);
-      if (e.message.includes('403') || e.message.includes('401')) handleLogout();
+      if (e.message.includes('Auth failed')) handleLogout();
     }
     setLoading(false);
   }, []);
@@ -667,9 +713,14 @@ function App() {
 
   async function handleUpdate(id, data) {
     try {
-      const updated = await TodoistAPI.updateTask(id, data);
-      setTasks(prev => prev.map(t => t.id === id ? updated : t));
-      if (selectedTask?.id === id) setSelectedTask(updated);
+      await TodoistAPI.updateTask(id, data);
+      // Optimistic update for labels
+      if (data.labels) {
+        setTasks(prev => prev.map(t => t.id === id ? {...t, labels: data.labels} : t));
+        if (selectedTask?.id === id) setSelectedTask(prev => ({...prev, labels: data.labels}));
+      } else {
+        await fetchAll(); // Refresh for other updates
+      }
     } catch(e) { setError(e.message); }
   }
 
