@@ -39,38 +39,36 @@ button{cursor:pointer;border:none;background:none}
 const {useState,useEffect,useCallback,useMemo,useRef,createContext,useContext} = React;
 
 // ─── Todoist API Layer ─────────────────────────────────────────────
-// Uses the Sync API for bulk reads (explicitly documented CORS support)
-// and REST v2 for individual task mutations
+// All requests go via Sync API v9 with token in the POST body
+// (not the Authorization header) to avoid CORS preflight entirely.
+// POST with application/x-www-form-urlencoded + no custom headers = "simple request" = no OPTIONS.
 const TodoistAPI = {
   token: null,
+  SYNC_URL: 'https://api.todoist.com/sync/v9/sync',
   
   setToken(t) { this.token = t; },
   
-  async _fetch(url, opts = {}) {
-    const headers = { 'Authorization': `Bearer ${this.token}`, ...opts.headers };
+  async _post(params) {
+    params.append('token', this.token);
     try {
-      const r = await fetch(url, { ...opts, headers });
+      const r = await fetch(this.SYNC_URL, {
+        method: 'POST',
+        body: params
+      });
       if (r.status === 401 || r.status === 403) throw new Error(`Auth failed (${r.status}) — check your API token`);
       if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`API error ${r.status}: ${t}`); }
-      if (r.status === 204) return null;
       return r.json();
     } catch(e) {
       if (e.message.startsWith('Auth') || e.message.startsWith('API')) throw e;
-      throw new Error(`Network error — the browser blocked the request. Open DevTools (F12) → Console for details.`);
+      throw new Error(`Network error: ${e.message}`);
     }
   },
 
-  // Sync API: single POST, returns all resources, confirmed CORS
   async syncAll() {
-    const data = new URLSearchParams();
-    data.append('sync_token', '*');
-    data.append('resource_types', '["items","projects","sections","labels"]');
-    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: data.toString()
-    });
-    // Sync API returns items (not tasks), map to REST-like shape
+    const p = new URLSearchParams();
+    p.append('sync_token', '*');
+    p.append('resource_types', '["items","projects","sections","labels"]');
+    const r = await this._post(p);
     const tasks = (r.items || []).filter(i => !i.checked && !i.is_deleted).map(i => ({
       id: i.id, content: i.content, description: i.description || '',
       priority: i.priority, project_id: i.project_id, section_id: i.section_id,
@@ -84,29 +82,19 @@ const TodoistAPI = {
     return { tasks, projects, sections, labels };
   },
 
-  // Test connection using Sync API
   async testConnection() {
-    const data = new URLSearchParams();
-    data.append('sync_token', '*');
-    data.append('resource_types', '["user"]');
-    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: data.toString()
-    });
+    const p = new URLSearchParams();
+    p.append('sync_token', '*');
+    p.append('resource_types', '["user"]');
+    const r = await this._post(p);
     return r.user;
   },
   
-  // Write operations via Sync API commands (same endpoint, same CORS)
   async _command(type, args) {
     const uuid = crypto.randomUUID();
-    const data = new URLSearchParams();
-    data.append('commands', JSON.stringify([{ type, uuid, args }]));
-    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: data.toString()
-    });
+    const p = new URLSearchParams();
+    p.append('commands', JSON.stringify([{ type, uuid, args }]));
+    const r = await this._post(p);
     if (r.sync_status && r.sync_status[uuid] !== 'ok') {
       const err = r.sync_status[uuid];
       throw new Error(`Command failed: ${typeof err === 'object' ? JSON.stringify(err) : err}`);
@@ -132,17 +120,12 @@ const TodoistAPI = {
     if (data.priority) args.priority = data.priority;
     if (data.description) args.description = data.description;
     
-    const params = new URLSearchParams();
-    params.append('commands', JSON.stringify([{ type: 'item_add', temp_id, uuid, args }]));
-    const r = await this._fetch('https://api.todoist.com/sync/v9/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString()
-    });
+    const p = new URLSearchParams();
+    p.append('commands', JSON.stringify([{ type: 'item_add', temp_id, uuid, args }]));
+    const r = await this._post(p);
     if (r.sync_status && r.sync_status[uuid] !== 'ok') {
       throw new Error(`Create failed: ${JSON.stringify(r.sync_status[uuid])}`);
     }
-    // Return a task-shaped object with the temp_id mapped to real id
     const realId = r.temp_id_mapping?.[temp_id] || temp_id;
     return { id: realId, content: args.content, description: args.description || '',
       priority: args.priority || 1, project_id: args.project_id || null,
