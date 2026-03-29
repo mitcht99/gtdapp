@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GTD Dashboard</title>
+<title>GTD Dashboard v0.4.0</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -39,99 +39,74 @@ button{cursor:pointer;border:none;background:none}
 const {useState,useEffect,useCallback,useMemo,useRef,createContext,useContext} = React;
 
 // ─── Todoist API Layer ─────────────────────────────────────────────
-// All requests go via Sync API v9 with token in the POST body
-// (not the Authorization header) to avoid CORS preflight entirely.
-// POST with application/x-www-form-urlencoded + no custom headers = "simple request" = no OPTIONS.
+// Todoist's API doesn't support browser CORS in practice.
+// All requests go through a Cloudflare Worker proxy that adds CORS headers.
+// Uses the unified v1 API with Authorization header (proxy handles CORS).
 const TodoistAPI = {
   token: null,
-  SYNC_URL: 'https://api.todoist.com/api/v1/sync',
+  proxyUrl: null, // e.g. 'https://todoist-proxy.xxx.workers.dev'
   
   setToken(t) { this.token = t; },
+  setProxy(url) { this.proxyUrl = url?.replace(/\/+$/, ''); },
   
-  async _post(params) {
-    params.append('token', this.token);
+  _url(path) {
+    if (this.proxyUrl) return `${this.proxyUrl}${path}`;
+    return `https://api.todoist.com${path}`;
+  },
+  
+  _headers() {
+    return { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' };
+  },
+
+  async _fetch(path, opts = {}) {
+    const url = this._url(path);
+    const headers = { ...this._headers(), ...opts.headers };
     try {
-      const r = await fetch(this.SYNC_URL, {
-        method: 'POST',
-        body: params
-      });
+      const r = await fetch(url, { ...opts, headers });
       if (r.status === 401 || r.status === 403) throw new Error(`Auth failed (${r.status}) — check your API token`);
       if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`API error ${r.status}: ${t}`); }
+      if (r.status === 204) return null;
       return r.json();
     } catch(e) {
       if (e.message.startsWith('Auth') || e.message.startsWith('API')) throw e;
+      if (!this.proxyUrl) throw new Error('CORS blocked — a proxy is required. See setup instructions.');
       throw new Error(`Network error: ${e.message}`);
     }
   },
 
-  async syncAll() {
-    const p = new URLSearchParams();
-    p.append('sync_token', '*');
-    p.append('resource_types', '["items","projects","sections","labels"]');
-    const r = await this._post(p);
-    const tasks = (r.items || []).filter(i => !i.checked && !i.is_deleted).map(i => ({
-      id: i.id, content: i.content, description: i.description || '',
-      priority: i.priority, project_id: i.project_id, section_id: i.section_id,
-      parent_id: i.parent_id, labels: i.labels || [], order: i.child_order,
-      due: i.due, created_at: i.added_at,
-      url: `https://app.todoist.com/showTask?id=${i.id}`
-    }));
-    const projects = (r.projects || []).filter(p => !p.is_deleted && !p.is_archived);
-    const sections = (r.sections || []).filter(s => !s.is_deleted && !s.is_archived);
-    const labels = (r.labels || []).filter(l => !l.is_deleted);
-    return { tasks, projects, sections, labels };
+  // REST API v1 endpoints (via proxy)
+  async getTasks() {
+    const r = await this._fetch('/api/v1/tasks');
+    // v1 returns { results: [...] } for paginated endpoints
+    return Array.isArray(r) ? r : (r.results || r);
   },
-
-  async testConnection() {
-    const p = new URLSearchParams();
-    p.append('sync_token', '*');
-    p.append('resource_types', '["user"]');
-    const r = await this._post(p);
-    return r.user;
+  async getProjects() {
+    const r = await this._fetch('/api/v1/projects');
+    return Array.isArray(r) ? r : (r.results || r);
+  },
+  async getSections() {
+    const r = await this._fetch('/api/v1/sections');
+    return Array.isArray(r) ? r : (r.results || r);
+  },
+  async getLabels() {
+    const r = await this._fetch('/api/v1/labels');
+    return Array.isArray(r) ? r : (r.results || r);
   },
   
-  async _command(type, args) {
-    const uuid = crypto.randomUUID();
-    const p = new URLSearchParams();
-    p.append('commands', JSON.stringify([{ type, uuid, args }]));
-    const r = await this._post(p);
-    if (r.sync_status && r.sync_status[uuid] !== 'ok') {
-      const err = r.sync_status[uuid];
-      throw new Error(`Command failed: ${typeof err === 'object' ? JSON.stringify(err) : err}`);
-    }
-    return r;
-  },
-
   async completeTask(id) {
-    return this._command('item_close', { id });
+    return this._fetch(`/api/v1/tasks/${id}/close`, { method: 'POST' });
   },
   
   async updateTask(id, data) {
-    return this._command('item_update', { id, ...data });
+    return this._fetch(`/api/v1/tasks/${id}`, {
+      method: 'POST', body: JSON.stringify(data)
+    });
   },
   
   async createTask(data) {
-    const temp_id = crypto.randomUUID();
-    const uuid = crypto.randomUUID();
-    const args = { content: data.content };
-    if (data.project_id) args.project_id = data.project_id;
-    if (data.labels) args.labels = data.labels;
-    if (data.due_string) args.due = { string: data.due_string };
-    if (data.priority) args.priority = data.priority;
-    if (data.description) args.description = data.description;
-    
-    const p = new URLSearchParams();
-    p.append('commands', JSON.stringify([{ type: 'item_add', temp_id, uuid, args }]));
-    const r = await this._post(p);
-    if (r.sync_status && r.sync_status[uuid] !== 'ok') {
-      throw new Error(`Create failed: ${JSON.stringify(r.sync_status[uuid])}`);
-    }
-    const realId = r.temp_id_mapping?.[temp_id] || temp_id;
-    return { id: realId, content: args.content, description: args.description || '',
-      priority: args.priority || 1, project_id: args.project_id || null,
-      section_id: null, parent_id: null, labels: args.labels || [],
-      order: 0, due: null, created_at: new Date().toISOString(),
-      url: `https://app.todoist.com/showTask?id=${realId}` };
+    return this._fetch('/api/v1/tasks', {
+      method: 'POST', body: JSON.stringify(data)
+    });
   }
 };
 
@@ -213,7 +188,8 @@ const S = {
     padding:'20px 16px 12px', borderBottom:'1px solid var(--border)',
     display:'flex', alignItems:'center', justifyContent:'space-between'
   },
-  logo: { fontWeight:600, fontSize:'15px', letterSpacing:'-0.3px', color:'var(--text-accent)' },
+  logo: { fontWeight:600, fontSize:'15px', letterSpacing:'-0.3px', color:'var(--text-accent)', display:'flex', alignItems:'baseline', gap:'6px' },
+  logoVersion: { fontSize:'10px', fontFamily:'var(--font-mono)', color:'var(--text-tertiary)', fontWeight:400 },
   sidebarSection: { padding:'12px 0 4px' },
   sidebarLabel: {
     padding:'0 16px', fontSize:'10px', fontWeight:600, letterSpacing:'1px',
@@ -326,39 +302,44 @@ function labelColor(l) {
 function SetupScreen({ onSave }) {
   const [todoistKey, setTodoistKey] = useState('');
   const [claudeKey, setClaudeKey] = useState('');
+  const [proxyUrl, setProxyUrl] = useState(localStorage.getItem('gtd_proxy_url') || '');
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
 
   async function handleTest() {
     if (!todoistKey.trim()) { setError('Todoist API token is required'); return; }
-    if (window.location.protocol === 'file:') {
-      setError('Cannot connect from a file:// URL — browsers block API requests from local files. Either serve this with "python -m http.server 8000" and open http://localhost:8000, or deploy to GitHub Pages.');
-      return;
-    }
+    if (!proxyUrl.trim()) { setError('Proxy URL is required — see setup instructions below'); return; }
     setTesting(true); setError('');
     try {
       TodoistAPI.setToken(todoistKey.trim());
-      const user = await TodoistAPI.testConnection();
-      onSave(todoistKey.trim(), claudeKey.trim(), user?.full_name);
+      TodoistAPI.setProxy(proxyUrl.trim());
+      await TodoistAPI.getProjects();
+      onSave(todoistKey.trim(), claudeKey.trim(), proxyUrl.trim());
     } catch(e) {
-      const msg = e.message === 'Failed to fetch' 
-        ? 'Network error — check your internet connection and that the API token is correct. If opening from a local file, serve via HTTP instead (python -m http.server 8000).'
-        : `Connection failed: ${e.message}`;
-      setError(msg);
+      setError(e.message);
     }
     setTesting(false);
   }
 
   return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--bg-root)'}}>
-      <div style={{width:'100%',maxWidth:'400px',padding:'32px'}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:'var(--bg-root)',padding:'24px'}}>
+      <div style={{width:'100%',maxWidth:'480px'}}>
         <div style={{marginBottom:'32px'}}>
-          <div style={{fontSize:'24px',fontWeight:600,color:'var(--text-accent)',letterSpacing:'-0.5px',marginBottom:'4px'}}>
+          <div style={{fontSize:'24px',fontWeight:600,color:'var(--text-accent)',letterSpacing:'-0.5px',marginBottom:'2px'}}>
             GTD Dashboard
           </div>
-          <div style={{fontSize:'13px',color:'var(--text-tertiary)'}}>
-            Connect your Todoist account to get started
+          <div style={{fontSize:'12px',color:'var(--text-tertiary)',fontFamily:'var(--font-mono)'}}>
+            v0.5.0
           </div>
+        </div>
+
+        <div style={{marginBottom:'16px'}}>
+          <div style={{fontSize:'12px',fontWeight:500,color:'var(--text-secondary)',marginBottom:'6px'}}>
+            CORS Proxy URL *
+          </div>
+          <input style={S.input} value={proxyUrl}
+            onChange={e => setProxyUrl(e.target.value)}
+            placeholder="https://todoist-proxy.YOUR-SUBDOMAIN.workers.dev" />
         </div>
 
         <div style={{marginBottom:'16px'}}>
@@ -368,9 +349,6 @@ function SetupScreen({ onSave }) {
           <input style={S.input} type="password" value={todoistKey}
             onChange={e => setTodoistKey(e.target.value)}
             placeholder="Paste from Settings → Integrations → Developer" />
-          <div style={{fontSize:'11px',color:'var(--text-tertiary)',marginTop:'4px'}}>
-            Find this in Todoist → Settings → Integrations → Developer
-          </div>
         </div>
 
         <div style={{marginBottom:'24px'}}>
@@ -380,9 +358,6 @@ function SetupScreen({ onSave }) {
           <input style={S.input} type="password" value={claudeKey}
             onChange={e => setClaudeKey(e.target.value)}
             placeholder="sk-ant-... (for AI features)" />
-          <div style={{fontSize:'11px',color:'var(--text-tertiary)',marginTop:'4px'}}>
-            Enables AI clarify, review, and planning features
-          </div>
         </div>
 
         {error && (
@@ -390,10 +365,28 @@ function SetupScreen({ onSave }) {
             background:'var(--red-dim)',borderRadius:'6px'}}>{error}</div>
         )}
 
-        <button style={S.btn('primary')} onClick={handleTest}
+        <button style={{...S.btn('primary'),marginBottom:'24px'}} onClick={handleTest}
           disabled={testing}>
           {testing ? 'Testing connection...' : 'Connect & start'}
         </button>
+
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:'16px'}}>
+          <div style={{fontSize:'12px',fontWeight:500,color:'var(--text-secondary)',marginBottom:'8px'}}>
+            One-time setup: CORS proxy (2 minutes)
+          </div>
+          <div style={{fontSize:'12px',color:'var(--text-tertiary)',lineHeight:1.7}}>
+            Todoist's API doesn't support browser CORS. A free Cloudflare Worker acts as a
+            pass-through that adds the required headers.
+          </div>
+          <ol style={{fontSize:'12px',color:'var(--text-tertiary)',lineHeight:1.8,paddingLeft:'18px',margin:'8px 0 0'}}>
+            <li>Go to <a href="https://dash.cloudflare.com" target="_blank" rel="noopener"
+              style={{color:'var(--text-accent)'}}>dash.cloudflare.com</a> (free account)</li>
+            <li>Workers & Pages → Create Worker</li>
+            <li>Paste the proxy code from <code style={{fontSize:'11px',background:'var(--bg-elevated)',
+              padding:'1px 4px',borderRadius:'3px'}}>todoist-cors-worker.js</code></li>
+            <li>Deploy — copy the worker URL and paste it above</li>
+          </ol>
+        </div>
       </div>
     </div>
   );
@@ -636,27 +629,32 @@ function App() {
   useEffect(() => {
     const tk = localStorage.getItem('gtd_todoist_key');
     const ck = localStorage.getItem('gtd_claude_key');
-    if (tk) {
+    const px = localStorage.getItem('gtd_proxy_url');
+    if (tk && px) {
       TodoistAPI.setToken(tk);
+      TodoistAPI.setProxy(px);
       if (ck) { ClaudeAPI.setKey(ck); setClaudeKey(ck); }
       setAuthed(true);
     }
   }, []);
 
-  function handleSetup(todoistKey, claudeApiKey, userName) {
+  function handleSetup(todoistKey, claudeApiKey, proxyUrl) {
     localStorage.setItem('gtd_todoist_key', todoistKey);
+    localStorage.setItem('gtd_proxy_url', proxyUrl);
     if (claudeApiKey) {
       localStorage.setItem('gtd_claude_key', claudeApiKey);
       ClaudeAPI.setKey(claudeApiKey);
       setClaudeKey(claudeApiKey);
     }
     TodoistAPI.setToken(todoistKey);
+    TodoistAPI.setProxy(proxyUrl);
     setAuthed(true);
   }
 
   function handleLogout() {
     localStorage.removeItem('gtd_todoist_key');
     localStorage.removeItem('gtd_claude_key');
+    localStorage.removeItem('gtd_proxy_url');
     setAuthed(false);
     setTasks([]); setProjects([]); setSections([]); setLabels([]);
   }
@@ -665,9 +663,11 @@ function App() {
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const data = await TodoistAPI.syncAll();
-      setTasks(data.tasks); setProjects(data.projects); 
-      setSections(data.sections); setLabels(data.labels);
+      const [t, p, s, l] = await Promise.all([
+        TodoistAPI.getTasks(), TodoistAPI.getProjects(),
+        TodoistAPI.getSections(), TodoistAPI.getLabels()
+      ]);
+      setTasks(t); setProjects(p); setSections(s); setLabels(l);
       setLastRefresh(new Date());
     } catch(e) {
       setError(e.message);
@@ -696,13 +696,12 @@ function App() {
 
   async function handleUpdate(id, data) {
     try {
-      await TodoistAPI.updateTask(id, data);
-      // Optimistic update for labels
-      if (data.labels) {
-        setTasks(prev => prev.map(t => t.id === id ? {...t, labels: data.labels} : t));
-        if (selectedTask?.id === id) setSelectedTask(prev => ({...prev, labels: data.labels}));
+      const updated = await TodoistAPI.updateTask(id, data);
+      if (updated) {
+        setTasks(prev => prev.map(t => t.id === id ? updated : t));
+        if (selectedTask?.id === id) setSelectedTask(updated);
       } else {
-        await fetchAll(); // Refresh for other updates
+        await fetchAll();
       }
     } catch(e) { setError(e.message); }
   }
@@ -784,7 +783,7 @@ function App() {
       {/* Sidebar */}
       <div style={{...S.sidebar, ...(sidebarCollapsed ? S.sidebarCollapsed : {})}}>
         <div style={S.sidebarHeader}>
-          <span style={S.logo}>GTD</span>
+          <span style={S.logo}>GTD <span style={S.logoVersion}>v0.4.0</span></span>
           <button onClick={() => setSidebarCollapsed(true)}
             style={{color:'var(--text-tertiary)',fontSize:'16px'}}>‹</button>
         </div>
